@@ -16,6 +16,15 @@
     - Соответствующие права доступа по ролям
 */
 
+-- Функция для обновления updated_at
+CREATE OR REPLACE FUNCTION update_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
 -- Создание таблицы категорий материалов
 CREATE TABLE IF NOT EXISTS material_categories (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -124,60 +133,67 @@ CREATE INDEX IF NOT EXISTS material_supplier_prices_supplier_id_idx ON material_
 CREATE INDEX IF NOT EXISTS materials_category_id_idx ON materials(category_id);
 
 -- Триггеры для обновления updated_at
-CREATE TRIGGER IF NOT EXISTS update_material_categories_updated_at
+DROP TRIGGER IF EXISTS update_material_categories_updated_at ON material_categories;
+CREATE TRIGGER update_material_categories_updated_at
   BEFORE UPDATE ON material_categories
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
-CREATE TRIGGER IF NOT EXISTS update_warehouses_updated_at
+DROP TRIGGER IF EXISTS update_warehouses_updated_at ON warehouses;
+CREATE TRIGGER update_warehouses_updated_at
   BEFORE UPDATE ON warehouses
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
-CREATE TRIGGER IF NOT EXISTS update_suppliers_updated_at
+DROP TRIGGER IF EXISTS update_suppliers_updated_at ON suppliers;
+CREATE TRIGGER update_suppliers_updated_at
   BEFORE UPDATE ON suppliers
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
 -- RLS политики для категорий материалов
 ALTER TABLE material_categories ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Все могут читать категории материалов" ON material_categories;
 CREATE POLICY "Все могут читать категории материалов"
   ON material_categories
   FOR SELECT
   TO authenticated
   USING (true);
 
+DROP POLICY IF EXISTS "Менеджеры могут управлять категориями материалов" ON material_categories;
 CREATE POLICY "Менеджеры могут управлять категориями материалов"
   ON material_categories
   FOR ALL
   TO authenticated
   USING (EXISTS (
     SELECT 1 FROM users u
-    WHERE u.id = uid() AND u.role = ANY(ARRAY['manager'::user_role, 'director'::user_role, 'admin'::user_role])
+    WHERE u.id = auth.uid() AND u.role = ANY(ARRAY['manager'::user_role, 'director'::user_role, 'admin'::user_role])
   ))
   WITH CHECK (EXISTS (
     SELECT 1 FROM users u
-    WHERE u.id = uid() AND u.role = ANY(ARRAY['manager'::user_role, 'director'::user_role, 'admin'::user_role])
+    WHERE u.id = auth.uid() AND u.role = ANY(ARRAY['manager'::user_role, 'director'::user_role, 'admin'::user_role])
   ));
 
 -- RLS политики для складов
 ALTER TABLE warehouses ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Все могут читать склады" ON warehouses;
 CREATE POLICY "Все могут читать склады"
   ON warehouses
   FOR SELECT
   TO authenticated
   USING (true);
 
+DROP POLICY IF EXISTS "Менеджеры могут управлять складами" ON warehouses;
 CREATE POLICY "Менеджеры могут управлять складами"
   ON warehouses
   FOR ALL
   TO authenticated
   USING (EXISTS (
     SELECT 1 FROM users u
-    WHERE u.id = uid() AND u.role = ANY(ARRAY['manager'::user_role, 'director'::user_role, 'admin'::user_role])
+    WHERE u.id = auth.uid() AND u.role = ANY(ARRAY['manager'::user_role, 'director'::user_role, 'admin'::user_role])
   ))
   WITH CHECK (EXISTS (
     SELECT 1 FROM users u
-    WHERE u.id = uid() AND u.role = ANY(ARRAY['manager'::user_role, 'director'::user_role, 'admin'::user_role])
+    WHERE u.id = auth.uid() AND u.role = ANY(ARRAY['manager'::user_role, 'director'::user_role, 'admin'::user_role])
   ));
 
 -- RLS политики для поставщиков
@@ -195,11 +211,11 @@ CREATE POLICY "Менеджеры могут управлять поставщи
   TO authenticated
   USING (EXISTS (
     SELECT 1 FROM users u
-    WHERE u.id = uid() AND u.role = ANY(ARRAY['manager'::user_role, 'director'::user_role, 'admin'::user_role])
+    WHERE u.id = auth.uid() AND u.role = ANY(ARRAY['manager'::user_role, 'director'::user_role, 'admin'::user_role])
   ))
   WITH CHECK (EXISTS (
     SELECT 1 FROM users u
-    WHERE u.id = uid() AND u.role = ANY(ARRAY['manager'::user_role, 'director'::user_role, 'admin'::user_role])
+    WHERE u.id = auth.uid() AND u.role = ANY(ARRAY['manager'::user_role, 'director'::user_role, 'admin'::user_role])
   ));
 
 -- RLS политики для инвентаризации материалов
@@ -217,11 +233,11 @@ CREATE POLICY "Менеджеры могут управлять инвентар
   TO authenticated
   USING (EXISTS (
     SELECT 1 FROM users u
-    WHERE u.id = uid() AND u.role = ANY(ARRAY['manager'::user_role, 'director'::user_role, 'admin'::user_role])
+    WHERE u.id = auth.uid() AND u.role = ANY(ARRAY['manager'::user_role, 'director'::user_role, 'admin'::user_role])
   ))
   WITH CHECK (EXISTS (
     SELECT 1 FROM users u
-    WHERE u.id = uid() AND u.role = ANY(ARRAY['manager'::user_role, 'director'::user_role, 'admin'::user_role])
+    WHERE u.id = auth.uid() AND u.role = ANY(ARRAY['manager'::user_role, 'director'::user_role, 'admin'::user_role])
   ));
 
 -- RLS политики для цен поставщиков
@@ -239,11 +255,11 @@ CREATE POLICY "Менеджеры могут управлять ценами п�
   TO authenticated
   USING (EXISTS (
     SELECT 1 FROM users u
-    WHERE u.id = uid() AND u.role = ANY(ARRAY['manager'::user_role, 'director'::user_role, 'admin'::user_role])
+    WHERE u.id = auth.uid() AND u.role = ANY(ARRAY['manager'::user_role, 'director'::user_role, 'admin'::user_role])
   ))
   WITH CHECK (EXISTS (
     SELECT 1 FROM users u
-    WHERE u.id = uid() AND u.role = ANY(ARRAY['manager'::user_role, 'director'::user_role, 'admin'::user_role])
+    WHERE u.id = auth.uid() AND u.role = ANY(ARRAY['manager'::user_role, 'director'::user_role, 'admin'::user_role])
   ));
 
 -- Вставка базовых категорий материалов

@@ -37,6 +37,12 @@ export function WorkerSuperScreen() {
   const { profile } = useAuth();
   const { toast } = useToast();
 
+  // Функция для логирования
+  const log = (message: string, data?: any) => {
+    const timestamp = new Date().toISOString();
+    console.log(`[WorkerScreen ${timestamp}] ${message}`, data || '');
+  };
+
   if (!hasValidCredentials || !supabase) {
     return (
       <div className="min-h-screen w-full bg-white text-slate-900 flex items-center justify-center">
@@ -59,11 +65,11 @@ export function WorkerSuperScreen() {
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [currentTime, setCurrentTime] = useState(new Date());
   const tabOptions = [
-    { id: 'time', label: 'Время' },
-    { id: 'tasks', label: 'Задачи' },
+    { id: 'main', label: 'Работа' },
+    { id: 'history', label: 'История' },
   ] as const;
   type TabId = typeof tabOptions[number]['id'];
-  const [tab, setTab] = useState<TabId>('tasks');
+  const [tab, setTab] = useState<TabId>('main');
   const [geoVerified, setGeoVerified] = useState(true);
   const [outside, setOutside] = useState(false);
   const [currentSeconds, setCurrentSeconds] = useState(0);
@@ -90,13 +96,34 @@ export function WorkerSuperScreen() {
 
   // Update task timer
   useEffect(() => {
-    if (currentTask && currentTask.status === 'in_progress' && currentTask.started_at) {
-      const timer = setInterval(() => {
+    log('useEffect task timer изменился', { 
+      hasCurrentTask: !!currentTask, 
+      taskStatus: currentTask?.status, 
+      taskStartedAt: currentTask?.started_at 
+    });
+    
+    if (currentTask && currentTask.started_at) {
+      if (currentTask.status === 'in_progress') {
+        log('Запускаем таймер задачи', { taskId: currentTask.id, taskTitle: currentTask.title });
+        const timer = setInterval(() => {
+          const taskSeconds = calculateTaskElapsedTime(currentTask);
+          setCurrentTaskSeconds(taskSeconds);
+        }, 1000);
+        return () => {
+          log('Останавливаем таймер задачи');
+          clearInterval(timer);
+        };
+      } else if (currentTask.status === 'paused') {
+        // При паузе показываем замороженное время
+        log('Задача на паузе, показываем замороженное время', { taskId: currentTask.id });
         const taskSeconds = calculateTaskElapsedTime(currentTask);
         setCurrentTaskSeconds(taskSeconds);
-      }, 1000);
-      return () => clearInterval(timer);
+      } else {
+        log('Останавливаем таймер задачи (задача не активна)', { status: currentTask.status });
+        setCurrentTaskSeconds(0);
+      }
     } else {
+      log('Останавливаем таймер задачи (нет активной задачи)');
       setCurrentTaskSeconds(0);
     }
   }, [currentTask]);
@@ -108,14 +135,61 @@ export function WorkerSuperScreen() {
     }
   }, [profile]);
 
+  // Автоматически начинаем задачу, если есть смена но нет активной задачи
+  useEffect(() => {
+    if (currentSession && !currentTask && tasks.length > 0 && !loading) {
+      // Ищем задачу, которую можно начать (только pending, не paused)
+      const startableTask = tasks.find(task => 
+        task.status === 'pending'
+      );
+      if (startableTask) {
+        log('Автоматически начинаем задачу после создания смены', { 
+          taskId: startableTask.id, 
+          taskStatus: startableTask.status 
+        });
+        // Используем setTimeout чтобы избежать конфликтов с текущим рендером
+        setTimeout(() => startTask(startableTask.id), 100);
+      }
+    }
+  }, [currentSession, currentTask, tasks, loading]);
+
+  // Глобальный обработчик ошибок для расширений браузера
+  useEffect(() => {
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      // Игнорируем ошибки расширений браузера
+      if (event.reason && typeof event.reason === 'string' && 
+          (event.reason.includes('message channel closed') || 
+           event.reason.includes('listener indicated an asynchronous response'))) {
+        log('Игнорируем ошибку расширения браузера', { reason: event.reason });
+        event.preventDefault();
+        return;
+      }
+      
+      log('Необработанная ошибка Promise', { 
+        reason: event.reason,
+        stack: event.reason instanceof Error ? event.reason.stack : undefined
+      });
+    };
+
+    window.addEventListener('unhandledrejection', handleUnhandledRejection);
+    
+    return () => {
+      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+    };
+  }, []);
+
   const initializeData = async () => {
     if (!profile) return;
     
+    log('Инициализация данных', { userId: profile.id });
     setLoading(true);
     try {
       await Promise.all([
         fetchCurrentSession(),
-        fetchTasks(),
+        (async () => {
+          log('fetchTasks() вызов из initializeData');
+          return fetchTasks();
+        })(),
         fetchTodayStats(),
         fetchHistory()
       ]);
@@ -147,6 +221,11 @@ export function WorkerSuperScreen() {
   const fetchTasks = async () => {
     if (!profile) return;
 
+    log('Загружаем задачи пользователя', { 
+      userId: profile.id,
+      stack: new Error().stack?.split('\n').slice(1, 4).join('\n') // Показываем откуда вызывается
+    });
+
     const { data, error } = await supabase
       .from('tasks')
       .select(`
@@ -164,12 +243,95 @@ export function WorkerSuperScreen() {
       .order('created_at', { ascending: false });
 
     if (!error && data) {
+      log('Задачи загружены', { 
+        totalTasks: data.length, 
+        tasks: data.map(t => ({ 
+          id: t.id, 
+          title: t.title, 
+          status: t.status, 
+          started_at: t.started_at,
+          paused_at: t.paused_at,
+          total_pause_duration: t.total_pause_duration
+        }))
+      });
+      
+      // Проверяем конкретную задачу, если она есть
+      const currentTaskInData = data.find(t => t.id === currentTask?.id);
+      if (currentTaskInData) {
+        log('Текущая задача в данных из БД', {
+          id: currentTaskInData.id,
+          status: currentTaskInData.status,
+          started_at: currentTaskInData.started_at,
+          paused_at: currentTaskInData.paused_at,
+          total_pause_duration: currentTaskInData.total_pause_duration
+        });
+      }
+      
+      // Проверяем все задачи на предмет сброшенных данных
+      const resetTasks = data.filter(t => t.started_at && t.status === 'pending');
+      if (resetTasks.length > 0) {
+        log('НАЙДЕНЫ СБРОШЕННЫЕ ЗАДАЧИ!', {
+          resetTasks: resetTasks.map(t => ({
+            id: t.id,
+            title: t.title,
+            status: t.status,
+            started_at: t.started_at,
+            paused_at: t.paused_at,
+            total_pause_duration: t.total_pause_duration
+          }))
+        });
+      }
+      
       setTasks(data);
+      
       // Set current task to the first in-progress or pending task
+      const inProgressTasks = data.filter(task => task.status === 'in_progress');
+      const pendingTasks = data.filter(task => task.status === 'pending');
+      
+      log('Анализ задач', {
+        inProgressTasks: inProgressTasks.length,
+        pendingTasks: pendingTasks.length,
+        inProgressDetails: inProgressTasks.map(t => ({ 
+          id: t.id, 
+          title: t.title, 
+          status: t.status, 
+          started_at: t.started_at 
+        })),
+        pendingDetails: pendingTasks.map(t => ({ 
+          id: t.id, 
+          title: t.title, 
+          status: t.status 
+        }))
+      });
+      
       const activeTask = data.find(task => 
-        task.status === 'in_progress' || task.status === 'pending'
+        task.status === 'in_progress' || task.status === 'pending' || task.status === 'paused'
       );
-      setCurrentTask(activeTask || null);
+      
+      log('Устанавливаем активную задачу', { 
+        activeTask: activeTask ? { 
+          id: activeTask.id, 
+          title: activeTask.title, 
+          status: activeTask.status,
+          started_at: activeTask.started_at,
+          paused_at: activeTask.paused_at,
+          total_pause_duration: activeTask.total_pause_duration
+        } : null,
+        currentTaskExists: !!currentTask,
+        currentTaskId: currentTask?.id
+      });
+      
+      // Не перезаписываем currentTask, если он уже есть и активен
+      if (currentTask && (currentTask.status === 'in_progress' || currentTask.status === 'paused')) {
+        log('Пропускаем обновление currentTask - уже есть активная задача', {
+          currentTaskId: currentTask.id,
+          currentTaskStatus: currentTask.status
+        });
+      } else {
+        setCurrentTask(activeTask || null);
+      }
+    } else {
+      log('Ошибка загрузки задач', { error });
     }
   };
 
@@ -218,16 +380,57 @@ export function WorkerSuperScreen() {
   };
 
   const calculateTaskElapsedTime = (task: Task): number => {
-    if (!task.started_at || task.status !== 'in_progress') return 0;
+    if (!task.started_at) {
+      log('calculateTaskElapsedTime: задача не начата', { 
+        taskId: task.id, 
+        hasStartedAt: !!task.started_at, 
+        status: task.status 
+      });
+      return 0;
+    }
     
     const startTime = new Date(task.started_at);
-    const now = new Date();
-    const totalElapsed = Math.floor((now.getTime() - startTime.getTime()) / 1000);
+    let endTime: Date;
+    
+    // Если задача на паузе, считаем время до момента паузы
+    if (task.status === 'paused' && task.paused_at) {
+      endTime = new Date(task.paused_at);
+    } else {
+      endTime = new Date();
+    }
+    
+    const totalElapsed = Math.floor((endTime.getTime() - startTime.getTime()) / 1000);
     
     // Subtract total pause duration
     const pauseDuration = task.total_pause_duration || 0;
+    const result = Math.max(0, totalElapsed - pauseDuration);
     
-    return Math.max(0, totalElapsed - pauseDuration);
+    // Логируем для отладки пауз
+    if (task.status === 'paused' || pauseDuration > 0) {
+      log('calculateTaskElapsedTime: пауза', { 
+        taskId: task.id, 
+        status: task.status,
+        totalElapsed, 
+        pauseDuration, 
+        result,
+        taskTotalPauseDuration: task.total_pause_duration,
+        paused_at: task.paused_at
+      });
+    }
+    
+    // Логируем каждые 10 секунд для отслеживания
+    if (result % 10 === 0 && result > 0) {
+      log('calculateTaskElapsedTime: обновление времени', { 
+        taskId: task.id, 
+        totalElapsed, 
+        pauseDuration, 
+        result,
+        status: task.status,
+        endTime: endTime.toISOString()
+      });
+    }
+    
+    return result;
   };
 
   const getShiftStatus = (): ShiftStatus => {
@@ -247,6 +450,7 @@ export function WorkerSuperScreen() {
   const startWork = async () => {
     if (!profile) return;
     
+    log('Начинаем смену', { userId: profile.id, userName: profile.full_name });
     setLoading(true);
     try {
       let location = null;
@@ -279,6 +483,7 @@ export function WorkerSuperScreen() {
 
       if (error) throw error;
       
+      log('Смена успешно начата', { sessionId: data.id, startTime: data.start_time });
       setCurrentSession(data);
       setCurrentSeconds(0);
       
@@ -303,12 +508,25 @@ export function WorkerSuperScreen() {
   const endWork = async () => {
     if (!currentSession || !profile) return;
 
+    log('Начинаем завершение смены', { 
+      sessionId: currentSession.id, 
+      userId: profile.id,
+      hasActiveTask: !!(currentTask && currentTask.status === 'in_progress')
+    });
+
     // Check if there's an active task
     if (currentTask && currentTask.status === 'in_progress') {
+      log('Обнаружена активная задача при завершении смены', { 
+        taskId: currentTask.id, 
+        taskTitle: currentTask.title 
+      });
       const shouldContinue = confirm(
         'У вас есть активная задача. Завершить смену без завершения задачи?'
       );
-      if (!shouldContinue) return;
+      if (!shouldContinue) {
+        log('Пользователь отменил завершение смены из-за активной задачи');
+        return;
+      }
     }
 
     setLoading(true);
@@ -316,9 +534,12 @@ export function WorkerSuperScreen() {
       let location = null;
       
       try {
+        log('Получаем геолокацию для завершения смены');
         const position = await getCurrentLocation();
         location = formatLocation(position);
+        log('Геолокация получена', { location });
       } catch (locationError) {
+        log('Ошибка получения геолокации при завершении смены', { error: locationError });
         console.warn('Geolocation failed:', locationError);
       }
       
@@ -326,6 +547,21 @@ export function WorkerSuperScreen() {
       const startTime = new Date(currentSession.start_time);
       const totalHours = (endTime.getTime() - startTime.getTime()) / (1000 * 60 * 60);
       const earnings = totalHours * (profile.hourly_rate || 0);
+      
+      log('Рассчитываем итоги смены', { 
+        startTime: startTime.toISOString(),
+        endTime: endTime.toISOString(),
+        totalHours: totalHours.toFixed(2),
+        earnings: earnings.toFixed(2),
+        hourlyRate: profile.hourly_rate
+      });
+
+      log('Обновляем смену в базе данных', { 
+        sessionId: currentSession.id,
+        endTime: endTime.toISOString(),
+        totalHours: totalHours.toFixed(2),
+        earnings: earnings.toFixed(2)
+      });
 
       const { error } = await supabase
         .from('work_sessions')
@@ -339,12 +575,23 @@ export function WorkerSuperScreen() {
 
       if (error) throw error;
       
+      log('Смена успешно завершена в базе данных');
+      
       setCurrentSession(null);
       setCurrentSeconds(0);
       
+      log('Обновляем статистику и историю');
       // Refresh today's stats
       await fetchTodayStats();
       await fetchHistory();
+      
+      // НЕ обновляем задачи здесь - смена завершена, задачи не должны перезагружаться
+      log('Смена завершена - НЕ обновляем задачи автоматически');
+      
+      log('Смена полностью завершена', { 
+        totalHours: totalHours.toFixed(2), 
+        earnings: earnings.toFixed(2) 
+      });
       
       toast({
         title: "Смена завершена",
@@ -352,6 +599,10 @@ export function WorkerSuperScreen() {
         variant: "success",
       });
     } catch (error) {
+      log('ОШИБКА при завершении смены', { 
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      });
       console.error('Error ending work:', error);
       toast({
         title: "Ошибка",
@@ -359,6 +610,7 @@ export function WorkerSuperScreen() {
         variant: "destructive",
       });
     } finally {
+      log('Завершение функции endWork (finally)');
       setLoading(false);
     }
   };
@@ -368,24 +620,93 @@ export function WorkerSuperScreen() {
     
     setLoading(true);
     try {
+      // Получаем актуальные данные задачи из базы данных
+      const { data: taskData, error: fetchError } = await supabase
+        .from('tasks')
+        .select('total_pause_duration, paused_at')
+        .eq('id', currentTask.id)
+        .single();
+      
+      if (fetchError) throw fetchError;
+      
+      // Рассчитываем общую продолжительность пауз
+      let totalPauseDuration = taskData.total_pause_duration || 0;
+      
+      // Если задача уже была на паузе, добавляем время текущей паузы
+      if (taskData.paused_at) {
+        const pauseStart = new Date(taskData.paused_at);
+        const now = new Date();
+        const currentPauseDuration = Math.floor((now.getTime() - pauseStart.getTime()) / 1000);
+        totalPauseDuration += currentPauseDuration;
+        log('Рассчитываем паузу', { 
+          pauseStart: pauseStart.toISOString(),
+          now: now.toISOString(),
+          currentPauseDuration,
+          totalPauseDuration
+        });
+      } else {
+        // Если задача не была на паузе, то это первая пауза
+        // Время паузы = 0 (пока что), но мы сохраняем текущее время как paused_at
+        log('Первая пауза задачи', { 
+          taskDataPausedAt: taskData.paused_at,
+          taskDataTotalPauseDuration: taskData.total_pause_duration
+        });
+      }
+      
+      log('Ставим задачу на паузу', { 
+        taskId: currentTask.id, 
+        totalPauseDuration,
+        previousPauseDuration: taskData.total_pause_duration,
+        fromDatabase: true,
+        updateData: {
+          status: 'paused',
+          paused_at: new Date().toISOString(),
+          total_pause_duration: totalPauseDuration,
+          updated_at: new Date().toISOString(),
+        }
+      });
+
       const { error } = await supabase
         .from('tasks')
         .update({
           status: 'paused',
           paused_at: new Date().toISOString(),
+          total_pause_duration: totalPauseDuration,
+          // НЕ сбрасываем started_at при паузе!
           updated_at: new Date().toISOString(),
         })
         .eq('id', currentTask.id);
 
       if (error) throw error;
       
-      await fetchTasks();
+      // Обновляем текущую задачу напрямую
+      if (currentTask) {
+        const updatedTask = { 
+          ...currentTask, 
+          status: 'paused' as const, 
+          paused_at: new Date().toISOString(),
+          total_pause_duration: totalPauseDuration
+        };
+        log('Обновляем currentTask при паузе', { 
+          taskId: currentTask.id,
+          total_pause_duration: totalPauseDuration,
+          paused_at: updatedTask.paused_at,
+          originalTotalPauseDuration: currentTask.total_pause_duration
+        });
+        setCurrentTask(updatedTask);
+      }
       
       toast({
         title: "Задача приостановлена",
         description: "Задача поставлена на паузу",
         variant: "success",
       });
+      
+      // Добавляем задержку перед fetchTasks, чтобы БД успела обновиться
+      setTimeout(() => {
+        log('Обновляем список задач после паузы');
+        fetchTasks();
+      }, 1000);
     } catch (error) {
       console.error('Error pausing task:', error);
       toast({
@@ -399,22 +720,52 @@ export function WorkerSuperScreen() {
   };
 
   const startTask = async (taskId: string) => {
-    if (!profile) return;
+    if (!profile || loading) return;
     
-    // Автоматически начинаем смену, если она не активна
+    log('Начинаем задачу', { taskId, userId: profile.id, hasSession: !!currentSession });
+    
+        // Автоматически начинаем смену, если она не активна
     if (!currentSession) {
-      await startWork();
-      // Ждем немного для создания сессии
-      setTimeout(() => startTask(taskId), 1000);
-      return;
+      log('Смена не активна, начинаем смену перед задачей');
+      setLoading(true);
+      try {
+        await startWork();
+        // После создания смены продолжаем с той же задачей
+        // Обновляем сессию и продолжаем
+        await fetchCurrentSession();
+        log('Смена создана, продолжаем с задачей', { taskId });
+        // Теперь продолжаем выполнение с той же задачей
+        // currentSession должен быть обновлен
+      } finally {
+        setLoading(false);
+      }
+      // НЕ выходим, продолжаем выполнение
     }
 
     const task = tasks.find(t => t.id === taskId);
     if (!task) return;
 
+    log('Найдена задача', { 
+      taskId, 
+      taskTitle: task.title, 
+      currentStatus: task.status,
+      started_at: task.started_at,
+      total_pause_duration: task.total_pause_duration
+    });
+
     // Определяем, это новая задача или возобновление приостановленной
-    const isResuming = task.status === 'paused';
+    // Проверяем также, есть ли started_at (если есть, значит задача уже начиналась)
+    const isResuming = task.status === 'paused' || (task.started_at && task.status !== 'completed');
     const newStatus = 'in_progress';
+    
+    // Если задача уже в работе, просто устанавливаем её как текущую
+    if (task.status === 'in_progress') {
+      log('Задача уже в работе, устанавливаем как текущую', { taskId, taskStatus: task.status });
+      setCurrentTask(task);
+      return;
+    }
+    
+    log('Тип операции', { isResuming, newStatus });
 
     // Check location if target_location is specified
     if (task.target_location) {
@@ -478,17 +829,45 @@ export function WorkerSuperScreen() {
 
       if (isResuming) {
         // Возобновляем приостановленную задачу
-        // Рассчитываем длительность текущей паузы
-        let totalPauseDuration = task.total_pause_duration || 0;
-        if (task.paused_at) {
-          const pauseStart = new Date(task.paused_at);
+        // Получаем актуальные данные из БД для правильного total_pause_duration
+        
+        const { data: taskData, error: fetchError } = await supabase
+          .from('tasks')
+          .select('total_pause_duration, started_at, paused_at')
+          .eq('id', taskId)
+          .single();
+        
+        if (fetchError) throw fetchError;
+        
+        // Рассчитываем время паузы
+        let totalPauseDuration = taskData.total_pause_duration || 0;
+        if (taskData.paused_at) {
+          const pauseStart = new Date(taskData.paused_at);
           const now = new Date();
-          const currentPauseDuration = Math.floor((now.getTime() - pauseStart.getTime()) / 1000);
-          totalPauseDuration += currentPauseDuration;
+          const pauseDuration = Math.floor((now.getTime() - pauseStart.getTime()) / 1000);
+          totalPauseDuration += pauseDuration;
+          
+          log('Рассчитываем время паузы при возобновлении', { 
+            taskId,
+            pauseStart: pauseStart.toISOString(),
+            now: now.toISOString(),
+            pauseDuration,
+            previousTotalPauseDuration: taskData.total_pause_duration,
+            newTotalPauseDuration: totalPauseDuration
+          });
         }
         
-        updateData.total_pause_duration = totalPauseDuration;
+        log('Возобновляем задачу', { 
+          taskId, 
+          currentPauseDuration: taskData.total_pause_duration,
+          calculatedTotalPauseDuration: totalPauseDuration,
+          originalStartedAt: taskData.started_at,
+          fromDatabase: true
+        });
+        
         updateData.paused_at = null;
+        updateData.total_pause_duration = totalPauseDuration;
+        // НЕ изменяем started_at при возобновлении!
         
         toast({
           title: "Задача возобновлена",
@@ -497,6 +876,7 @@ export function WorkerSuperScreen() {
         });
       } else {
         // Начинаем новую задачу
+        log('Начинаем новую задачу', { taskId, startTime: new Date().toISOString() });
         updateData.started_at = new Date().toISOString();
         updateData.start_location = location;
         
@@ -507,6 +887,8 @@ export function WorkerSuperScreen() {
         });
       }
 
+      log('Обновляем задачу в базе данных', { taskId, updateData });
+      
       const { error } = await supabase
         .from('tasks')
         .update(updateData)
@@ -514,7 +896,29 @@ export function WorkerSuperScreen() {
 
       if (error) throw error;
       
-      await fetchTasks();
+      log('Задача успешно обновлена в базе данных');
+      
+      // Устанавливаем текущую задачу как активную
+      const updatedTask = { 
+        ...task, 
+        status: 'in_progress' as const, 
+        started_at: isResuming ? task.started_at : (updateData.started_at || task.started_at),
+        total_pause_duration: isResuming ? updateData.total_pause_duration : (task.total_pause_duration || 0),
+        paused_at: undefined
+      };
+      log('Устанавливаем текущую задачу', { 
+        taskId, 
+        taskTitle: updatedTask.title,
+        started_at: updatedTask.started_at,
+        total_pause_duration: updatedTask.total_pause_duration
+      });
+      setCurrentTask(updatedTask);
+      
+      // Добавляем задержку перед fetchTasks, чтобы БД успела обновиться
+      setTimeout(() => {
+        log('Обновляем список задач после изменения');
+        fetchTasks();
+      }, 1000);
     } catch (error) {
       console.error('Error starting task:', error);
       toast({
@@ -547,15 +951,8 @@ export function WorkerSuperScreen() {
         updated_at: new Date().toISOString(),
       };
 
-      // Если задача была на паузе, добавляем последнюю длительность паузы
+      // Если задача была на паузе, total_pause_duration уже обновлен в pauseShift
       if (task && task.paused_at) {
-        let totalPauseDuration = task.total_pause_duration || 0;
-        const pauseStart = new Date(task.paused_at);
-        const now = new Date();
-        const currentPauseDuration = Math.floor((now.getTime() - pauseStart.getTime()) / 1000);
-        totalPauseDuration += currentPauseDuration;
-        
-        updateData.total_pause_duration = totalPauseDuration;
         updateData.paused_at = null;
       }
 
@@ -566,7 +963,10 @@ export function WorkerSuperScreen() {
 
       if (error) throw error;
       
-      await fetchTasks();
+      // Сбрасываем текущую задачу, если завершили её
+      if (currentTask && currentTask.id === taskId) {
+        setCurrentTask(null);
+      }
       
       toast({
         title: "Задача завершена",
@@ -695,8 +1095,11 @@ export function WorkerSuperScreen() {
           </div>
         </section>
 
-        {tab === 'time' && (
+        {tab === 'main' && (
           <>
+            {/* Основной экран - только текущая работа */}
+            
+            {/* Смена */}
             <ShiftCard
               status={shiftStatus}
               outside={outside}
@@ -705,26 +1108,7 @@ export function WorkerSuperScreen() {
               loading={loading}
             />
 
-            <ObjectsList
-              tasks={tasks}
-              onMoveStart={moveStart}
-              loading={loading}
-            />
-
-            <EarningsToday
-              todayEarnings={todayEarnings}
-              todayHours={todayHours}
-            />
-
-            <HistoryMini
-              history={history}
-              onShowAll={() => toast({ title: "История", description: "Показать все смены" })}
-            />
-          </>
-        )}
-
-        {tab === 'tasks' && (
-          <>
+            {/* Текущая задача */}
             <CurrentTaskCard
               task={currentTask}
               taskElapsedTime={formatTime(currentTaskSeconds)}
@@ -736,42 +1120,100 @@ export function WorkerSuperScreen() {
               loading={loading}
             />
 
-            {/* Список всех задач */}
+            {/* Объекты */}
+            <ObjectsList
+              tasks={tasks}
+              onMoveStart={moveStart}
+              loading={loading}
+            />
+
+            {/* Статистика дня */}
+            <EarningsToday
+              todayEarnings={todayEarnings}
+              todayHours={todayHours}
+            />
+
+            {/* Список активных задач */}
             <div className="space-y-3">
-              <h3 className="text-lg font-semibold">Все задачи</h3>
-              {tasks.length === 0 ? (
+              <h3 className="text-lg font-semibold">Активные задачи</h3>
+              {tasks.filter(task => task.status !== 'completed').length === 0 ? (
                 <div className="text-center py-8 text-slate-500">
-                  <p>Нет назначенных задач</p>
+                  <p>Нет активных задач</p>
                 </div>
               ) : (
-                tasks.map((task) => (
-                  <div key={task.id} className="border border-slate-200 rounded-lg p-3">
-                    <div className="flex items-center justify-between mb-2">
-                      <div>
-                        <div className="font-medium text-sm">{task.title}</div>
-                        <div className="text-xs text-slate-500 line-clamp-1">{task.description}</div>
-                        <div className="text-xs text-slate-400 mt-1">
-                          Статус: {
-                            task.status === 'completed' ? 'Завершена' :
-                            task.status === 'in_progress' ? 'В работе' :
-                            task.status === 'paused' ? 'На паузе' :
-                            'Ожидает'
-                          }
+                tasks
+                  .filter(task => task.status !== 'completed')
+                  .map((task) => (
+                    <div key={task.id} className="border border-slate-200 rounded-lg p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <div>
+                          <div className="font-medium text-sm">{task.title}</div>
+                          <div className="text-xs text-slate-500 line-clamp-1">{task.description}</div>
+                          <div className="text-xs text-slate-400 mt-1">
+                            Статус: {
+                              task.status === 'in_progress' ? 'В работе' :
+                              task.status === 'paused' ? 'На паузе' :
+                              'Ожидает'
+                            }
+                          </div>
                         </div>
+                        <Badge 
+                          variant={
+                            task.priority === 'high' ? 'warning' : 
+                            task.priority === 'medium' ? 'secondary' : 'success'
+                          }
+                          className="text-xs"
+                        >
+                          {task.priority === 'high' ? 'Высокий' : 
+                           task.priority === 'medium' ? 'Средний' : 'Низкий'}
+                        </Badge>
                       </div>
-                      <Badge 
-                        variant={
-                          task.priority === 'high' ? 'warning' : 
-                          task.priority === 'medium' ? 'secondary' : 'success'
-                        }
-                        className="text-xs"
-                      >
-                        {task.priority === 'high' ? 'Высокий' : 
-                         task.priority === 'medium' ? 'Средний' : 'Низкий'}
-                      </Badge>
                     </div>
-                  </div>
-                ))
+                  ))
+              )}
+            </div>
+          </>
+        )}
+
+        {tab === 'history' && (
+          <>
+            {/* Экран истории */}
+            
+            {/* История смен */}
+            <div className="space-y-3">
+              <h3 className="text-lg font-semibold">История смен</h3>
+              <HistoryMini
+                history={history}
+                onShowAll={() => toast({ title: "История", description: "Показать все смены" })}
+              />
+            </div>
+
+            {/* Выполненные задачи */}
+            <div className="space-y-3">
+              <h3 className="text-lg font-semibold">Выполненные задачи</h3>
+              {tasks.filter(task => task.status === 'completed').length === 0 ? (
+                <div className="text-center py-8 text-slate-500">
+                  <p>Нет выполненных задач</p>
+                </div>
+              ) : (
+                tasks
+                  .filter(task => task.status === 'completed')
+                  .map((task) => (
+                    <div key={task.id} className="border border-slate-200 rounded-lg p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <div>
+                          <div className="font-medium text-sm">{task.title}</div>
+                          <div className="text-xs text-slate-500 line-clamp-1">{task.description}</div>
+                          <div className="text-xs text-slate-400 mt-1">
+                            Завершена: {task.completed_at ? new Date(task.completed_at).toLocaleDateString('ru-RU') : 'Неизвестно'}
+                          </div>
+                        </div>
+                        <Badge variant="success" className="text-xs">
+                          Завершена
+                        </Badge>
+                      </div>
+                    </div>
+                  ))
               )}
             </div>
           </>

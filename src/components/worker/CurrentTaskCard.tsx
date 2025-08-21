@@ -62,7 +62,7 @@ export function CurrentTaskCard({ task, taskElapsedTime, onStartTask, onComplete
           Оценка: {task.estimated_hours} ч • Время в работе: {taskElapsedTime}
         </div>
       )}
-      {!task.estimated_hours && task.status === 'in_progress' && (
+      {!task.estimated_hours && (task.status === 'in_progress' || task.status === 'paused') && (
         <div className="text-sm text-slate-500 mb-3">
           Время в работе: {taskElapsedTime}
         </div>
@@ -73,10 +73,19 @@ export function CurrentTaskCard({ task, taskElapsedTime, onStartTask, onComplete
           variant="outline"
           size="default"
           className="h-12"
-          onClick={() => onStartTask(task.id)}
+          onClick={() => {
+            if (task.status === 'pending') {
+              onStartTask(task.id);
+            } else if (task.status === 'in_progress') {
+              onPause();
+            } else if (task.status === 'paused') {
+              onStartTask(task.id);
+            }
+          }}
           disabled={loading || task.status === 'completed'}
         >
-          {task.status === 'in_progress' ? 'В работе' : 
+          {task.status === 'pending' ? 'В работу' : 
+           task.status === 'in_progress' ? 'Пауза' : 
            task.status === 'paused' ? 'Продолжить' : 'В работу'}
         </Button>
         <Button
@@ -90,41 +99,29 @@ export function CurrentTaskCard({ task, taskElapsedTime, onStartTask, onComplete
         </Button>
       </div>
 
-      {/* Quick Actions */}
-      {task.status === 'in_progress' && (
-        <div className="grid grid-cols-3 gap-2 mb-3">
-          <Button
-            variant="outline"
-            size="default"
-            className="h-12"
-            onClick={onPause}
-            disabled={loading}
-          >
-            <Pause className="w-4 h-4 mr-1" />
-            Перерыв
-          </Button>
-          <Button
-            variant="outline"
-            size="default"
-            className="h-12"
-            onClick={onPhotoReport}
-            disabled={loading}
-          >
-            <Camera className="w-4 h-4 mr-1" />
-            Фото-отчёт
-          </Button>
-          <Button
-            variant="outline"
-            size="default"
-            className="h-12"
-            onClick={onCallManager}
-            disabled={loading}
-          >
-            <Phone className="w-4 h-4 mr-1" />
-            Позвонить
-          </Button>
-        </div>
-      )}
+      {/* Quick Actions - только фото-отчёт и позвонить */}
+      <div className="grid grid-cols-2 gap-2 mb-3">
+        <Button
+          variant="outline"
+          size="default"
+          className="h-12"
+          onClick={onPhotoReport}
+          disabled={loading}
+        >
+          <Camera className="w-4 h-4 mr-1" />
+          Фото-отчёт
+        </Button>
+        <Button
+          variant="outline"
+          size="default"
+          className="h-12"
+          onClick={onCallManager}
+          disabled={loading}
+        >
+          <Phone className="w-4 h-4 mr-1" />
+          Позвонить
+        </Button>
+      </div>
 
       {task.task_materials && task.task_materials.length > 0 && (
         <div className="rounded-xl bg-slate-50 p-3 text-sm text-slate-600">

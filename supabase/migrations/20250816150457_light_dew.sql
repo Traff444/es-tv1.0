@@ -78,13 +78,7 @@ CREATE POLICY "authenticated_users_can_read_profiles"
   TO authenticated
   USING (
     (role != 'inactive' AND is_active = true) OR 
-    EXISTS (
-      SELECT 1 FROM users u 
-      WHERE u.id = auth.uid() 
-      AND u.role IN ('admin', 'director', 'manager')
-      AND u.is_active = true
-      AND u.role != 'inactive'
-    )
+    check_admin_role() OR check_manager_role()
   );
 
 -- Политика для обновления пользователей администраторами
@@ -93,24 +87,8 @@ CREATE POLICY "admins_can_update_user_roles"
   ON users
   FOR UPDATE
   TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM users u 
-      WHERE u.id = auth.uid() 
-      AND u.role = 'admin'
-      AND u.is_active = true
-      AND u.role != 'inactive'
-    )
-  )
-  WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM users u 
-      WHERE u.id = auth.uid() 
-      AND u.role = 'admin'
-      AND u.is_active = true
-      AND u.role != 'inactive'
-    )
-  );
+  USING (check_admin_role())
+  WITH CHECK (check_admin_role());
 
 -- Политика для директоров управлять пользователями (кроме админов)
 DROP POLICY IF EXISTS "directors_can_manage_users" ON users;
@@ -120,23 +98,11 @@ CREATE POLICY "directors_can_manage_users"
   TO authenticated
   USING (
     role != 'admin' AND
-    EXISTS (
-      SELECT 1 FROM users u 
-      WHERE u.id = auth.uid() 
-      AND u.role = 'director'
-      AND u.is_active = true
-      AND u.role != 'inactive'
-    )
+    check_admin_role()
   )
   WITH CHECK (
     role != 'admin' AND
-    EXISTS (
-      SELECT 1 FROM users u 
-      WHERE u.id = auth.uid() 
-      AND u.role = 'director'
-      AND u.is_active = true
-      AND u.role != 'inactive'
-    )
+    check_admin_role()
   );
 
 -- Создаем индексы для производительности

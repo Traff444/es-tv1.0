@@ -25,7 +25,7 @@ function App() {
   }
 
   // Show auth screen if user is not authenticated or no valid credentials
-  if (!hasValidCredentials || !user) {
+  if (!hasValidCredentials) {
     return (
       <>
         <Auth />
@@ -34,8 +34,18 @@ function App() {
     );
   }
 
-  // Additional safety check for profile
-  if (!profile) {
+  // Show auth screen if user is not authenticated
+  if (!user) {
+    return (
+      <>
+        <Auth />
+        <Toaster />
+      </>
+    );
+  }
+
+  // Show loading while fetching profile
+  if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
@@ -43,6 +53,16 @@ function App() {
           <p className="text-gray-600">Загрузка профиля...</p>
         </div>
       </div>
+    );
+  }
+
+  // Show auth screen if profile is not available
+  if (!profile) {
+    return (
+      <>
+        <Auth />
+        <Toaster />
+      </>
     );
   }
   // Show admin panel for admin users

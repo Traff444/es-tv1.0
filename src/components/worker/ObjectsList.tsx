@@ -10,13 +10,36 @@ interface ObjectsListProps {
   loading: boolean;
 }
 
-export function ObjectsList({ tasks, onMoveStart, loading }: ObjectsListProps) {
-  // Фильтруем задачи, у которых есть target_location и которые не завершены
+const ObjectsListComponent = ({ tasks, onMoveStart, loading }: ObjectsListProps) => {
+  // Фильтруем задачи, у которых есть target_location и которые ожидают начала (только pending)
   const tasksWithLocation = tasks.filter(task => 
-    task.target_location && task.status !== 'completed'
+    task.target_location && 
+    task.status === 'pending'
   );
 
-  if (tasksWithLocation.length === 0) {
+  // Группируем задачи по target_location (уникальные объекты)
+  const uniqueLocations = new Map<string, { 
+    location: string, 
+    tasks: Task[], 
+    firstTask: Task 
+  }>();
+
+  tasksWithLocation.forEach(task => {
+    const location = task.target_location!;
+    if (!uniqueLocations.has(location)) {
+      uniqueLocations.set(location, {
+        location,
+        tasks: [task],
+        firstTask: task
+      });
+    } else {
+      uniqueLocations.get(location)!.tasks.push(task);
+    }
+  });
+
+  const objects = Array.from(uniqueLocations.values());
+
+  if (objects.length === 0) {
     return (
       <Card className="p-4">
         <div className="mb-2">
@@ -38,33 +61,33 @@ export function ObjectsList({ tasks, onMoveStart, loading }: ObjectsListProps) {
       </div>
       
       <div className="space-y-3">
-        {tasksWithLocation.map((task) => (
+        {objects.map((obj) => (
           <div
-            key={task.id}
+            key={obj.location}
             className="flex items-center justify-between p-3 bg-slate-50 rounded-lg"
           >
             <div className="flex-1">
               <div className="font-medium text-sm text-slate-900 mb-1">
-                {task.title}
+                Объект: {obj.location}
               </div>
               <div className="flex items-center space-x-1 text-xs text-slate-600">
                 <MapPin className="w-3 h-3" />
-                <span>{task.target_location}</span>
+                <span>{obj.location}</span>
               </div>
               <div className="text-xs text-slate-500 mt-1">
-                Статус: {
-                  task.status === 'completed' ? 'Завершена' :
-                  task.status === 'in_progress' ? 'В работе' :
-                  task.status === 'paused' ? 'На паузе' :
-                  'Ожидает'
-                }
+                Задач на объекте: {obj.tasks.length}
+                {obj.tasks.length > 1 && (
+                  <div className="text-xs text-slate-400 mt-1">
+                    {obj.tasks.map(t => t.title).join(', ')}
+                  </div>
+                )}
               </div>
             </div>
             <Button
               variant="outline"
               size="sm"
               className="ml-3"
-              onClick={() => onMoveStart(task.id)}
+              onClick={() => onMoveStart(obj.firstTask.id)}
               disabled={loading}
             >
               <Truck className="w-4 h-4 mr-1" />
@@ -75,4 +98,6 @@ export function ObjectsList({ tasks, onMoveStart, loading }: ObjectsListProps) {
       </div>
     </Card>
   );
-}
+};
+
+export const ObjectsList = React.memo(ObjectsListComponent);

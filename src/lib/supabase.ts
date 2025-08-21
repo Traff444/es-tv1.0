@@ -7,8 +7,7 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const hasValidCredentials = Boolean(
   supabaseUrl && 
   supabaseAnonKey && 
-  supabaseUrl.includes('supabase.co') &&
-  supabaseUrl.startsWith('https://')
+  (supabaseUrl.includes('supabase.co') || supabaseUrl.includes('127.0.0.1'))
 );
 
 export const supabase = hasValidCredentials 

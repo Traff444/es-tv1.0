@@ -101,7 +101,7 @@ CREATE POLICY "users_can_read_own_profile"
   ON users
   FOR SELECT
   TO authenticated
-  USING (uid() = id AND is_active = true);
+  USING (auth.uid() = id AND is_active = true);
 
 -- Update policy for authenticated users to read profiles (only active users)
 DROP POLICY IF EXISTS "authenticated_users_can_read_profiles" ON users;
@@ -112,59 +112,67 @@ CREATE POLICY "authenticated_users_can_read_profiles"
   USING (is_active = true);
 
 -- Create policy for admins and directors to view all users (including inactive)
-CREATE POLICY IF NOT EXISTS "admins_can_read_all_users"
+-- Use a function to avoid infinite recursion
+CREATE OR REPLACE FUNCTION check_admin_role()
+RETURNS BOOLEAN AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM users u
+    WHERE u.id = auth.uid() 
+    AND u.role IN ('admin', 'director')
+    AND u.is_active = true
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE POLICY "admins_can_read_all_users"
   ON users
   FOR SELECT
   TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM users u
-      WHERE u.id = uid() 
-      AND u.role IN ('admin', 'director')
-      AND u.is_active = true
-    )
-  );
+  USING (check_admin_role());
 
 -- Create policy for admins to update user status and passport data
-CREATE POLICY IF NOT EXISTS "admins_can_update_user_data"
+CREATE POLICY "admins_can_update_user_data"
   ON users
   FOR UPDATE
   TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM users u
-      WHERE u.id = uid() 
-      AND u.role IN ('admin', 'director')
-      AND u.is_active = true
-    )
-  )
-  WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM users u
-      WHERE u.id = uid() 
-      AND u.role IN ('admin', 'director')
-      AND u.is_active = true
-    )
-  );
+  USING (check_admin_role())
+  WITH CHECK (check_admin_role());
 
 -- Update existing policies to ensure only active users can perform actions
 -- Update tasks policies
+-- Create function to check if user is active
+CREATE OR REPLACE FUNCTION check_user_active()
+RETURNS BOOLEAN AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM users u 
+    WHERE u.id = auth.uid() AND u.is_active = true
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Create function to check if user is manager or higher
+CREATE OR REPLACE FUNCTION check_manager_role()
+RETURNS BOOLEAN AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM users u
+    WHERE u.id = auth.uid() 
+    AND u.role IN ('manager', 'director', 'admin')
+    AND u.is_active = true
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
 DROP POLICY IF EXISTS "Рабочие могут читать назначенные " ON tasks;
 CREATE POLICY "Рабочие могут читать назначенные задачи"
   ON tasks
   FOR SELECT
   TO authenticated
   USING (
-    (assigned_to = uid() AND EXISTS (
-      SELECT 1 FROM users u WHERE u.id = uid() AND u.is_active = true
-    )) 
-    OR 
-    (EXISTS (
-      SELECT 1 FROM users u
-      WHERE u.id = uid() 
-      AND u.role IN ('manager', 'director', 'admin')
-      AND u.is_active = true
-    ))
+    (assigned_to = auth.uid() AND check_user_active()) 
+    OR check_manager_role()
   );
 
 DROP POLICY IF EXISTS "Рабочие могут обновлять статус св" ON tasks;
@@ -173,18 +181,12 @@ CREATE POLICY "Рабочие могут обновлять статус сво�
   FOR UPDATE
   TO authenticated
   USING (
-    assigned_to = uid() 
-    AND EXISTS (
-      SELECT 1 FROM users u 
-      WHERE u.id = uid() AND u.is_active = true
-    )
+    assigned_to = auth.uid() 
+    AND check_user_active()
   )
   WITH CHECK (
-    assigned_to = uid() 
-    AND EXISTS (
-      SELECT 1 FROM users u 
-      WHERE u.id = uid() AND u.is_active = true
-    )
+    assigned_to = auth.uid() 
+    AND check_user_active()
   );
 
 DROP POLICY IF EXISTS "Менеджеры могут обновлять все зад" ON tasks;
@@ -192,42 +194,22 @@ CREATE POLICY "Менеджеры могут обновлять все зада�
   ON tasks
   FOR UPDATE
   TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM users u
-      WHERE u.id = uid() 
-      AND u.role IN ('manager', 'director', 'admin')
-      AND u.is_active = true
-    )
-  );
+  USING (check_manager_role())
+  WITH CHECK (check_manager_role());
 
 DROP POLICY IF EXISTS "Менеджеры могут создавать задачи" ON tasks;
 CREATE POLICY "Менеджеры могут создавать задачи"
   ON tasks
   FOR INSERT
   TO authenticated
-  WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM users u
-      WHERE u.id = uid() 
-      AND u.role IN ('manager', 'director', 'admin')
-      AND u.is_active = true
-    )
-  );
+  WITH CHECK (check_manager_role());
 
 DROP POLICY IF EXISTS "Менеджеры могут удалять задачи" ON tasks;
 CREATE POLICY "Менеджеры могут удалять задачи"
   ON tasks
   FOR DELETE
   TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM users u
-      WHERE u.id = uid() 
-      AND u.role IN ('manager', 'director', 'admin')
-      AND u.is_active = true
-    )
-  );
+  USING (check_manager_role());
 
 -- Update work_sessions policies
 DROP POLICY IF EXISTS "Рабочие могут создавать свои смен" ON work_sessions;
@@ -236,11 +218,8 @@ CREATE POLICY "Рабочие могут создавать свои смены"
   FOR INSERT
   TO authenticated
   WITH CHECK (
-    user_id = uid() 
-    AND EXISTS (
-      SELECT 1 FROM users u 
-      WHERE u.id = uid() AND u.is_active = true
-    )
+    user_id = auth.uid() 
+    AND check_user_active()
   );
 
 DROP POLICY IF EXISTS "Рабочие могут обновлять свои смен" ON work_sessions;
@@ -249,18 +228,12 @@ CREATE POLICY "Рабочие могут обновлять свои смены"
   FOR UPDATE
   TO authenticated
   USING (
-    user_id = uid() 
-    AND EXISTS (
-      SELECT 1 FROM users u 
-      WHERE u.id = uid() AND u.is_active = true
-    )
+    user_id = auth.uid() 
+    AND check_user_active()
   )
   WITH CHECK (
-    user_id = uid() 
-    AND EXISTS (
-      SELECT 1 FROM users u 
-      WHERE u.id = uid() AND u.is_active = true
-    )
+    user_id = auth.uid() 
+    AND check_user_active()
   );
 
 DROP POLICY IF EXISTS "Рабочие могут читать свои смены" ON work_sessions;
@@ -269,13 +242,13 @@ CREATE POLICY "Рабочие могут читать свои смены"
   FOR SELECT
   TO authenticated
   USING (
-    (user_id = uid() AND EXISTS (
-      SELECT 1 FROM users u WHERE u.id = uid() AND u.is_active = true
+    (user_id = auth.uid() AND EXISTS (
+      SELECT 1 FROM users u WHERE u.id = auth.uid() AND u.is_active = true
     )) 
     OR 
     (EXISTS (
       SELECT 1 FROM users u
-      WHERE u.id = uid() 
+      WHERE u.id = auth.uid() 
       AND u.role IN ('manager', 'director', 'admin')
       AND u.is_active = true
     ))
