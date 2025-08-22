@@ -61,29 +61,57 @@ git clone https://github.com/Traff444/ElectroService1.1.git
 cd ElectroService1.1
 ```
 
-2. **Установите зависимости**
+2. **Автоматическая настройка (рекомендуется)**
+
+**macOS/Linux:**
+```bash
+chmod +x setup.sh
+./setup.sh
+```
+
+**Windows:**
+```cmd
+setup.bat
+```
+
+**Или ручная настройка:**
 ```bash
 npm install
 ```
 
 3. **Настройте Supabase**
+
+**Вариант A: Локальная разработка (рекомендуется)**
 ```bash
 # Установите Supabase CLI
 npm install -g supabase
 
-# Инициализируйте Supabase
+# Инициализируйте Supabase (если еще не инициализирован)
 supabase init
 
 # Запустите локальную Supabase
 supabase start
+
+# После запуска скопируйте данные из вывода команды
+# В файл .env.local:
+VITE_SUPABASE_URL=http://127.0.0.1:54321
+VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 ```
 
+**Вариант B: Облачная Supabase**
+1. Перейдите на [supabase.com](https://supabase.com)
+2. Создайте новый проект
+3. В настройках проекта найдите "API" → "Project API keys"
+4. Скопируйте URL и anon key в `.env.local`
+
 4. **Настройте переменные окружения**
-Создайте файл `.env.local`:
+Создайте файл `.env.local` в корне проекта:
 ```env
 VITE_SUPABASE_URL=http://127.0.0.1:54321
-VITE_SUPABASE_ANON_KEY=your_anon_key_here
+VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 ```
+
+**Важно**: Замените `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...` на реальный anon key из вывода команды `supabase start`
 
 5. **Примените миграции базы данных**
 ```bash
@@ -96,6 +124,29 @@ npm run dev
 ```
 
 Приложение будет доступно по адресу: http://localhost:5173
+
+## 🚀 Быстрый старт (30 секунд)
+
+1. **Клонируйте и настройте:**
+```bash
+git clone https://github.com/Traff444/ElectroService1.1.git
+cd ElectroService1.1
+./setup.sh  # или setup.bat на Windows
+```
+
+2. **Запустите приложение:**
+```bash
+npm run dev
+```
+
+3. **Откройте в браузере:**
+- Приложение: http://localhost:5173
+- Supabase Studio: http://127.0.0.1:54323
+
+4. **Войдите с тестовыми данными:**
+- Админ: `admin@test.com` / `password`
+- Менеджер: `manager@test.com` / `password`
+- Рабочий: `worker@test.com` / `password`
 
 ## 📊 База данных
 
