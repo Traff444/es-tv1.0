@@ -3,6 +3,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { supabase, getCurrentLocation, formatLocation, signOut, calculateDistance, parseCoordinates, hasValidCredentials } from '../../lib/supabase';
 import { useToast } from '../../hooks/useToast';
 import { WorkSession, Task } from '../../types';
+import { TaskPhotoChecklist } from '../TaskPhotoChecklist';
 import { HeaderStatus } from './HeaderStatus';
 import { ShiftCard } from './ShiftCard';
 import { CurrentTaskCard } from './CurrentTaskCard';
@@ -74,6 +75,9 @@ export function WorkerSuperScreen() {
   const [outside, setOutside] = useState(false);
   const [currentSeconds, setCurrentSeconds] = useState(0);
   const [currentTaskSeconds, setCurrentTaskSeconds] = useState(0);
+  const [showPhotoChecklist, setShowPhotoChecklist] = useState(false);
+  const [selectedTaskForChecklist, setSelectedTaskForChecklist] = useState<Task | null>(null);
+  const [pendingTaskStart, setPendingTaskStart] = useState<string | null>(null);
 
   // Update current time every second
   useEffect(() => {
@@ -232,6 +236,7 @@ export function WorkerSuperScreen() {
         *,
         assignee:assigned_to(id, full_name, email),
         creator:created_by(id, full_name, email),
+        task_type:task_type_id(id, slug, display_name, requires_before_photos, photo_min, allow_auto_accept, default_checklist),
         task_materials(
           id,
           quantity_needed,
@@ -321,13 +326,34 @@ export function WorkerSuperScreen() {
         currentTaskId: currentTask?.id
       });
       
-      // Не перезаписываем currentTask, если он уже есть и активен
-      if (currentTask && (currentTask.status === 'in_progress' || currentTask.status === 'paused')) {
-        log('Пропускаем обновление currentTask - уже есть активная задача', {
-          currentTaskId: currentTask.id,
-          currentTaskStatus: currentTask.status
+      // Обновляем currentTask, если статус изменился в БД
+      if (currentTask && activeTask && currentTask.id === activeTask.id) {
+        // Если статус задачи изменился в БД, обновляем currentTask
+        if (currentTask.status !== activeTask.status || 
+            currentTask.paused_at !== activeTask.paused_at ||
+            currentTask.total_pause_duration !== activeTask.total_pause_duration) {
+          log('Обновляем currentTask из БД - статус изменился', {
+            currentTaskId: currentTask.id,
+            oldStatus: currentTask.status,
+            newStatus: activeTask.status,
+            oldPausedAt: currentTask.paused_at,
+            newPausedAt: activeTask.paused_at,
+            oldPauseDuration: currentTask.total_pause_duration,
+            newPauseDuration: activeTask.total_pause_duration
+          });
+          setCurrentTask(activeTask);
+        } else {
+          log('currentTask актуален - не обновляем', {
+            currentTaskId: currentTask.id,
+            currentTaskStatus: currentTask.status
+          });
+        }
+      } else if (!currentTask || (currentTask && activeTask && currentTask.id !== activeTask.id)) {
+        // Устанавливаем новую задачу или если задача сменилась
+        log('Устанавливаем новую активную задачу', {
+          oldTaskId: currentTask?.id,
+          newTaskId: activeTask?.id
         });
-      } else {
         setCurrentTask(activeTask || null);
       }
     } else {
@@ -546,7 +572,16 @@ export function WorkerSuperScreen() {
       const endTime = new Date();
       const startTime = new Date(currentSession.start_time);
       const totalHours = (endTime.getTime() - startTime.getTime()) / (1000 * 60 * 60);
-      const earnings = totalHours * (profile.hourly_rate || 0);
+      
+      // Используем новую систему тарифов для расчета заработка
+      const { data: earningsData, error: earningsError } = await supabase
+        .rpc('calculate_earnings', {
+          user_uuid: profile.id,
+          start_time: startTime.toISOString(),
+          end_time: endTime.toISOString()
+        });
+      
+      const earnings = earningsError ? 0 : (earningsData || 0);
       
       log('Рассчитываем итоги смены', { 
         startTime: startTime.toISOString(),
@@ -595,7 +630,7 @@ export function WorkerSuperScreen() {
       
       toast({
         title: "Смена завершена",
-        description: `Сегодня: ${totalHours.toFixed(1)} ч • ${earnings.toFixed(0)} ₽`,
+        description: `Сегодня: ${totalHours.toFixed(1)} ч • ${earnings.toFixed(0)} BYN`,
         variant: "success",
       });
     } catch (error) {
@@ -812,6 +847,36 @@ export function WorkerSuperScreen() {
         }
       }
     }
+
+    // Проверяем, требуется ли фото "до" для начала работы
+    const requiresBeforePhotos = task.task_type?.requires_before_photos || task.effective_requires_before || false;
+    if (requiresBeforePhotos && !isResuming) {
+      // Проверяем, есть ли уже фото "до"
+      const { data: beforePhotos } = await supabase
+        .from('task_photos')
+        .select('*')
+        .eq('task_id', taskId)
+        .eq('photo_type', 'before');
+
+      if (!beforePhotos || beforePhotos.length === 0) {
+        const shouldTakePhotos = confirm(
+          'Для этой задачи требуется сделать фото "до" начала работы. Сделать фото сейчас?'
+        );
+        if (shouldTakePhotos) {
+          setSelectedTaskForChecklist(task);
+          setShowPhotoChecklist(true);
+          setPendingTaskStart(taskId); // Сохраняем ID задачи для последующего старта
+          return; // Не начинаем задачу, пока не сделают фото
+        } else {
+          const continueAnyway = confirm(
+            'Продолжить без фото "до"? Это может повлиять на приёмку работы.'
+          );
+          if (!continueAnyway) {
+            return;
+          }
+        }
+      }
+    }
     setLoading(true);
     try {
       let location: string | null = null;
@@ -932,9 +997,45 @@ export function WorkerSuperScreen() {
   };
 
   const completeTask = async (taskId: string) => {
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+
+    // ✅ ПРАВИЛЬНО: Проверяем общее количество фото и фото результата для завершения
+    const photoMin = task.task_type?.photo_min || task.effective_photo_min || 2;
+    
+    // Проверяем общее количество фото
+    const { data: allPhotos } = await supabase
+      .from('task_photos')
+      .select('*')
+      .eq('task_id', taskId);
+
+    if (!allPhotos || allPhotos.length < photoMin) {
+      toast({
+        title: "Недостаточно фото",
+        description: `Для завершения задачи необходимо минимум ${photoMin} фото. Загружено: ${allPhotos?.length || 0}`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Проверяем наличие фото результата
+    const { data: resultPhotos } = await supabase
+      .from('task_photos')
+      .select('*')
+      .eq('task_id', taskId)
+      .eq('photo_type', 'after');
+
+    if (!resultPhotos || resultPhotos.length === 0) {
+      toast({
+        title: "Требуется фото результата",
+        description: "Для завершения задачи необходимо загрузить фото выполненной работы.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setLoading(true);
     try {
-      const task = tasks.find(t => t.id === taskId);
       let location = null;
       
       try {
@@ -1011,11 +1112,37 @@ export function WorkerSuperScreen() {
   };
 
   const photoReport = async () => {
+    if (!currentTask) {
+      toast({
+        title: "Ошибка",
+        description: "Нет активной задачи для фото-отчёта",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setSelectedTaskForChecklist(currentTask);
+    setShowPhotoChecklist(true);
+  };
+
+  const handlePhotoChecklistSubmit = () => {
+    setShowPhotoChecklist(false);
+    setSelectedTaskForChecklist(null);
+    fetchTasks(); // Обновляем список задач
     toast({
-      title: "Фото-отчёт",
-      description: "Фото-отчёт отправлен!",
+      title: "Фото добавлены",
+      description: "Фото успешно добавлены к задаче!",
       variant: "success",
     });
+    
+    // Если есть ожидающий старт задачи, запускаем его
+    if (pendingTaskStart) {
+      log('Продолжаем старт задачи после загрузки фото', { taskId: pendingTaskStart });
+      setTimeout(() => {
+        startTask(pendingTaskStart);
+        setPendingTaskStart(null);
+      }, 1000); // Небольшая задержка для обновления данных
+    }
   };
 
   const callManager = async () => {
@@ -1087,7 +1214,7 @@ export function WorkerSuperScreen() {
           <div className="text-sm text-slate-500">Добрый день, {profile?.full_name}!</div>
           <div className="ml-auto flex gap-2">
             <div className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium">
-              Сегодня: <span className="font-bold">{todayEarnings.toLocaleString()} ₽</span>
+              Сегодня: <span className="font-bold">{todayEarnings.toLocaleString()} BYN</span>
             </div>
             <div className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium">
               <span className="font-bold">{todayHours.toFixed(1)} ч</span>
@@ -1232,6 +1359,20 @@ export function WorkerSuperScreen() {
           {mainCtaLabel}
         </Button>
       </div>
+
+      {/* Photo Checklist Modal */}
+      {showPhotoChecklist && selectedTaskForChecklist && (
+        <TaskPhotoChecklist
+          task={selectedTaskForChecklist}
+          isOpen={showPhotoChecklist}
+          onClose={() => {
+            setShowPhotoChecklist(false);
+            setSelectedTaskForChecklist(null);
+            setPendingTaskStart(null); // Очищаем ожидающий старт при закрытии
+          }}
+          onSubmit={handlePhotoChecklistSubmit}
+        />
+      )}
     </div>
   );
 }

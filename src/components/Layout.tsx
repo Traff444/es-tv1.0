@@ -9,10 +9,12 @@ import {
   Package,
   BarChart3,
   Users,
-  Settings
+  Settings,
+  Home,
+  DollarSign
 } from 'lucide-react';
 
-type View = 'time' | 'tasks' | 'materials' | 'team' | 'analytics' | 'admin';
+type View = 'dashboard' | 'time' | 'tasks' | 'materials' | 'team' | 'tariffs' | 'analytics' | 'admin';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -29,6 +31,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, onNavigate, currentVie
 
   const getNavItems = () => {
     const baseItems = [
+      { icon: Home, label: 'Дашборд', view: 'dashboard', roles: ['manager', 'director'] },
       { icon: Clock, label: 'Время', view: 'time', roles: ['worker'] },
       { icon: CheckSquare, label: 'Задачи', view: 'tasks', roles: ['worker', 'manager'] },
     ];
@@ -36,6 +39,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, onNavigate, currentVie
     const managerItems = [
       { icon: Package, label: 'Материалы', view: 'materials', roles: ['manager', 'director'] },
       { icon: Users, label: 'Команда', view: 'team', roles: ['manager', 'director'] },
+      { icon: DollarSign, label: 'Тарифы', view: 'tariffs', roles: ['manager', 'director'] },
     ];
 
     const directorItems = [

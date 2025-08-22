@@ -32,7 +32,7 @@ export function HistoryMini({ history, onShowAll }: HistoryMiniProps) {
           {history.slice(0, 3).map((entry, idx) => (
             <li key={idx} className="flex items-center justify-between py-3">
               <span>{entry.date} • {entry.hours} ч</span>
-              <span className="font-semibold">{entry.earnings.toLocaleString()} ₽</span>
+                              <span className="font-semibold">{entry.earnings.toLocaleString()} BYN</span>
             </li>
           ))}
         </ul>

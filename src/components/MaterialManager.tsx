@@ -26,7 +26,8 @@ import {
   Tag,
   AlertTriangle,
   MapPin,
-  Building
+  Building,
+  ArrowLeft
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
@@ -37,7 +38,11 @@ interface EditingItem
     Partial<Warehouse>,
     Partial<Supplier> {}
 
-export const MaterialManager: React.FC = () => {
+interface MaterialManagerProps {
+  onNavigate?: (view: string) => void;
+}
+
+export const MaterialManager: React.FC<MaterialManagerProps> = ({ onNavigate }) => {
   const { profile } = useAuth();
 
   const [materials, setMaterials] = useState<Material[]>([]);
@@ -185,13 +190,26 @@ export const MaterialManager: React.FC = () => {
     <div className="space-y-6">
       {/* Header */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <div className="flex items-center space-x-3 mb-4">
-          <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center">
-            <Package className="w-6 h-6 text-orange-600" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Управление материалами</h1>
-            <p className="text-gray-600">Контроль складских остатков, категорий и поставщиков</p>
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center space-x-4">
+            {onNavigate && (
+              <button
+                onClick={() => onNavigate('dashboard')}
+                className="flex items-center space-x-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 px-3 py-2 rounded-lg transition-colors"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span className="text-sm font-medium">Назад к дашборду</span>
+              </button>
+            )}
+            <div className="flex items-center space-x-3">
+              <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center">
+                <Package className="w-6 h-6 text-orange-600" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">Управление материалами</h1>
+                <p className="text-gray-600">Контроль складских остатков, категорий и поставщиков</p>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -404,7 +422,7 @@ export const MaterialManager: React.FC = () => {
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-gray-600">Стоимость:</span>
                       <span className="text-sm text-gray-900">
-                        {material.cost_per_unit} ₽/{material.default_unit}
+                        {material.cost_per_unit} BYN/{material.default_unit}
                       </span>
                     </div>
                   </div>
@@ -1022,7 +1040,7 @@ const CreateEditModal: React.FC<CreateEditModalProps> = ({
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Стоимость за единицу (₽) *
+                    Стоимость за единицу (BYN) *
                   </label>
                   <input
                     type="number"

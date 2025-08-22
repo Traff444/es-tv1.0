@@ -353,7 +353,7 @@ export const AdminPanel: React.FC = () => {
                           </span>
                         </td>
                         <td className="py-4 px-6 text-sm text-gray-900">
-                          {user.hourly_rate ? `${user.hourly_rate} ₽/ч` : '—'}
+                          {user.hourly_rate ? `${user.hourly_rate} BYN/ч` : '—'}
                         </td>
                         <td className="py-4 px-6 text-sm text-gray-900">
                           {user.passport_series && user.passport_number 

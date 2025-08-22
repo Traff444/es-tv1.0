@@ -3,6 +3,8 @@ import { useAuth } from '../hooks/useAuth';
 import { supabase, getCurrentLocation, formatLocation, hasValidCredentials } from '../lib/supabase';
 import { Task, User, Material } from '../types';
 import { MapButton } from './MapDisplay';
+import { TaskPhotoChecklist } from './TaskPhotoChecklist';
+import { TaskApproval } from './TaskApproval';
 import { 
   Plus, 
   CheckSquare, 
@@ -20,7 +22,11 @@ import {
   Play,
   Square,
   Loader2,
-  Pause
+  Pause,
+  Home,
+  ArrowLeft,
+  Camera,
+  Eye
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
@@ -271,7 +277,11 @@ const MapSelectorModal: React.FC<MapSelectorModalProps> = ({ center, onSelect, o
   );
 };
 
-export const TaskManager: React.FC = () => {
+interface TaskManagerProps {
+  onNavigate?: (view: string) => void;
+}
+
+export const TaskManager: React.FC<TaskManagerProps> = ({ onNavigate }) => {
   const { profile } = useAuth();
 
   if (!hasValidCredentials || !supabase) {
@@ -286,6 +296,7 @@ export const TaskManager: React.FC = () => {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [materials, setMaterials] = useState<Material[]>([]);
+  const [taskTypes, setTaskTypes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
@@ -293,12 +304,16 @@ export const TaskManager: React.FC = () => {
   const [filter, setFilter] = useState<'all' | Task['status']>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [updatingTask, setUpdatingTask] = useState<string | null>(null);
+  const [showPhotoChecklist, setShowPhotoChecklist] = useState(false);
+  const [selectedTaskForChecklist, setSelectedTaskForChecklist] = useState<Task | null>(null);
+  const [showTaskApproval, setShowTaskApproval] = useState(false);
 
   useEffect(() => {
     fetchTasks();
     if (profile?.role === 'manager') {
       fetchUsers();
       fetchMaterials();
+      fetchTaskTypes();
     }
   }, [profile]);
 
@@ -353,6 +368,31 @@ export const TaskManager: React.FC = () => {
 
     if (!error && data) {
       setMaterials(data);
+    }
+  };
+
+  const fetchTaskTypes = async () => {
+    if (!supabase) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('task_types')
+        .select('*')
+        .eq('is_active', true)
+        .order('display_name');
+
+      if (error) {
+        console.error('Error fetching task types:', error);
+        return;
+      }
+
+      if (data) {
+        setTaskTypes(data);
+      } else {
+        setTaskTypes([]);
+      }
+    } catch (err) {
+      console.error('Exception in fetchTaskTypes:', err);
     }
   };
 
@@ -447,6 +487,27 @@ export const TaskManager: React.FC = () => {
     }
   };
 
+  // Функции для работы с фото-чек-листом
+  const handlePhotoChecklist = (task: Task) => {
+    setSelectedTaskForChecklist(task);
+    setShowPhotoChecklist(true);
+  };
+
+  const handlePhotoChecklistSubmit = () => {
+    setShowPhotoChecklist(false);
+    setSelectedTaskForChecklist(null);
+    fetchTasks(); // Обновляем список задач
+  };
+
+  const handleTaskApproval = () => {
+    setShowTaskApproval(true);
+  };
+
+  const handleTaskApprovalClose = () => {
+    setShowTaskApproval(false);
+    fetchTasks(); // Обновляем список задач
+  };
+
   const getPriorityColor = (priority: Task['priority']) => {
     switch (priority) {
       case 'high': return 'bg-red-100 text-red-800 border-red-200';
@@ -458,6 +519,9 @@ export const TaskManager: React.FC = () => {
 
   const getStatusColor = (status: Task['status']) => {
     switch (status) {
+      case 'done': return 'bg-green-100 text-green-800 border-green-200';
+      case 'awaiting_approval': return 'bg-orange-100 text-orange-800 border-orange-200';
+      case 'awaiting_photos': return 'bg-purple-100 text-purple-800 border-purple-200';
       case 'completed': return 'bg-green-100 text-green-800 border-green-200';
       case 'in_progress': return 'bg-blue-100 text-blue-800 border-blue-200';
       case 'paused': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
@@ -486,26 +550,46 @@ export const TaskManager: React.FC = () => {
       {/* Header */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">
-              {profile?.role === 'worker' ? 'Мои задачи' : 'Управление задачами'}
-            </h1>
-            <p className="text-gray-600 mt-1">
-              {profile?.role === 'worker' 
-                ? 'Ваши назначенные задачи и их статус' 
-                : 'Создание и управление задачами команды'
-              }
-            </p>
+          <div className="flex items-center space-x-4">
+            {profile?.role === 'manager' && onNavigate && (
+              <button
+                onClick={() => onNavigate('dashboard')}
+                className="flex items-center space-x-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 px-3 py-2 rounded-lg transition-colors"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span className="text-sm font-medium">Назад к дашборду</span>
+              </button>
+            )}
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">
+                {profile?.role === 'worker' ? 'Мои задачи' : 'Управление задачами'}
+              </h1>
+              <p className="text-gray-600 mt-1">
+                {profile?.role === 'worker' 
+                  ? 'Ваши назначенные задачи и их статус' 
+                  : 'Создание и управление задачами команды'
+                }
+              </p>
+            </div>
           </div>
         
           {profile?.role === 'manager' && (
-            <button
-              onClick={() => setShowCreateForm(true)}
-              className="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center space-x-2"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Создать задачу</span>
-            </button>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowCreateForm(true)}
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center space-x-2"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Создать задачу</span>
+              </button>
+              <button
+                onClick={handleTaskApproval}
+                className="bg-orange-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-orange-700 transition-colors flex items-center space-x-2"
+              >
+                <Eye className="w-4 h-4" />
+                <span>Приёмка задач</span>
+              </button>
+            </div>
           )}
         </div>
 
@@ -524,7 +608,10 @@ export const TaskManager: React.FC = () => {
               <option value="all">Все задачи</option>
               <option value="pending">Ожидают</option>
               <option value="in_progress">В работе</option>
-             <option value="paused">На паузе</option>
+              <option value="paused">На паузе</option>
+              <option value="awaiting_photos">Ожидают фото</option>
+              <option value="awaiting_approval">На приёмке</option>
+              <option value="done">Готово</option>
               <option value="completed">Завершены</option>
             </select>
           </div>
@@ -594,9 +681,11 @@ export const TaskManager: React.FC = () => {
                   <span className={`px-2 py-1 font-medium rounded-full border ${getStatusColor(task.status)} ${
                     profile?.role === 'worker' ? 'text-sm px-3 py-1' : 'text-xs'
                   }`}>
-                    {task.status === 'completed' ? 'Завершена' :
+                    {task.status === 'done' ? 'Готово' :
+                     task.status === 'awaiting_approval' ? 'На приёмке' :
+                     task.status === 'awaiting_photos' ? 'Ожидает фото' :
+                     task.status === 'completed' ? 'Завершена' :
                      task.status === 'in_progress' ? 'В работе' :
-                     task.status === 'paused' ? 'На паузе' :
                      task.status === 'paused' ? 'На паузе' : 'Ожидает'}
                   </span>
                 </div>
@@ -817,7 +906,7 @@ export const TaskManager: React.FC = () => {
                         )}
                       </button>
                       <button
-                        onClick={() => updateTaskStatus(task.id, 'completed')}
+                        onClick={() => handlePhotoChecklist(task)}
                         disabled={updatingTask === task.id}
                         className="w-full bg-green-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center space-x-2"
                       >
@@ -825,12 +914,28 @@ export const TaskManager: React.FC = () => {
                           <Loader2 className="w-5 h-5 animate-spin" />
                         ) : (
                           <>
-                            <Square className="w-5 h-5" />
-                            <span>Завершить работу</span>
+                            <Camera className="w-5 h-5" />
+                            <span>Фото-отчёт</span>
                           </>
                         )}
                       </button>
                     </>
+                  )}
+                  {task.status === 'awaiting_photos' && (
+                    <button
+                      onClick={() => handlePhotoChecklist(task)}
+                      disabled={updatingTask === task.id}
+                      className="w-full bg-purple-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center space-x-2"
+                    >
+                      {updatingTask === task.id ? (
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                      ) : (
+                        <>
+                          <Camera className="w-5 h-5" />
+                          <span>Дополнить фото</span>
+                        </>
+                      )}
+                    </button>
                   )}
                 </div>
               )}
@@ -858,6 +963,7 @@ export const TaskManager: React.FC = () => {
         <TaskFormModal
           users={users}
           materials={materials}
+          taskTypes={taskTypes}
           onClose={() => setShowCreateForm(false)}
           onSuccess={() => {
             setShowCreateForm(false);
@@ -872,11 +978,34 @@ export const TaskManager: React.FC = () => {
           task={editingTask}
           users={users}
           materials={materials}
+          taskTypes={taskTypes}
           onClose={() => setEditingTask(null)}
           onSuccess={() => {
             setEditingTask(null);
             fetchTasks();
           }}
+        />
+      )}
+
+      {/* Photo Checklist Modal */}
+      {showPhotoChecklist && selectedTaskForChecklist && (
+        <TaskPhotoChecklist
+          task={selectedTaskForChecklist}
+          isOpen={showPhotoChecklist}
+          onClose={() => {
+            setShowPhotoChecklist(false);
+            setSelectedTaskForChecklist(null);
+          }}
+          onSubmit={handlePhotoChecklistSubmit}
+        />
+      )}
+
+      {/* Task Approval Modal */}
+      {showTaskApproval && (
+        <TaskApproval
+          isOpen={showTaskApproval}
+          onClose={handleTaskApprovalClose}
+          onRefresh={fetchTasks}
         />
       )}
     </div>
@@ -888,6 +1017,7 @@ interface TaskFormModalProps {
   task?: Task;
   users: User[];
   materials: Material[];
+  taskTypes: any[];
   onClose: () => void;
   onSuccess: () => void;
 }
@@ -896,6 +1026,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
   task,
   users,
   materials,
+  taskTypes,
   onClose,
   onSuccess,
 }) => {
@@ -907,6 +1038,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
     assigned_to: task?.assigned_to || '',
     estimated_hours: task?.estimated_hours?.toString() || '',
     target_location: task?.target_location || '',
+    task_type_id: task?.task_type_id || '',
   });
   const [selectedMaterials, setSelectedMaterials] = useState<Array<{
     id?: string;
@@ -946,6 +1078,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
             estimated_hours: formData.estimated_hours ? parseFloat(formData.estimated_hours) : null,
             updated_at: new Date().toISOString(),
             target_location: formData.target_location || null,
+            task_type_id: formData.task_type_id || null,
           })
           .eq('id', task.id)
           .select()
@@ -968,6 +1101,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
             created_by: profile.id,
             estimated_hours: formData.estimated_hours ? parseFloat(formData.estimated_hours) : null,
             target_location: formData.target_location || null,
+            task_type_id: formData.task_type_id || null,
           })
           .select()
           .single();
@@ -1083,7 +1217,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
               />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Приоритет
@@ -1099,6 +1233,26 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
                 </select>
               </div>
 
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Тип задачи
+                </label>
+                <select
+                  value={formData.task_type_id}
+                  onChange={(e) => setFormData({ ...formData, task_type_id: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">Выберите тип задачи</option>
+                  {taskTypes.map((type) => (
+                    <option key={type.id} value={type.id}>
+                      {type.display_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Исполнитель

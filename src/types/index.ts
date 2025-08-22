@@ -151,3 +151,136 @@ export interface RoleChangeLog {
   user?: User;
   admin?: User;
 }
+
+export interface TariffType {
+  id: string;
+  name: string;
+  type: 'weekday' | 'weekend' | 'holiday';
+  description?: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UserTariff {
+  id: string;
+  user_id: string;
+  tariff_type_id: string;
+  rate_per_minute: number;
+  currency: string;
+  is_active: boolean;
+  valid_from: string;
+  valid_to?: string;
+  created_at: string;
+  updated_at: string;
+  user?: User;
+  tariff_type?: TariffType;
+}
+
+export interface Holiday {
+  id: string;
+  date: string;
+  name: string;
+  description?: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+// Система фото-чек-листов и приёмки
+export type RiskLevel = 'low' | 'medium' | 'high';
+export type PhotoType = 'before' | 'after';
+export type TaskStatus = 'ready' | 'in_progress' | 'awaiting_photos' | 'awaiting_approval' | 'done';
+
+export interface TaskType {
+  id: string;
+  slug: string;
+  display_name: string;
+  service_domain: string;
+  risk_level: RiskLevel;
+  requires_before_photos: boolean;
+  photo_min: number;
+  allow_auto_accept: boolean;
+  default_checklist: string[];
+  default_norm_minutes: number;
+  version: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TaskPhoto {
+  id: string;
+  task_id: string;
+  photo_url: string;
+  photo_type: PhotoType;
+  uploaded_at: string;
+  is_synced: boolean;
+  local_path?: string;
+  file_size?: number;
+  created_at: string;
+}
+
+export interface TaskChecklist {
+  id: string;
+  task_id: string;
+  checklist_item: string;
+  is_completed: boolean;
+  completed_at?: string;
+  is_synced: boolean;
+  created_at: string;
+}
+
+export interface UserReliabilityScore {
+  id: string;
+  user_id: string;
+  score: number;
+  tasks_completed: number;
+  tasks_returned: number;
+  last_calculated_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// Обновленный интерфейс Task с новыми полями
+export interface Task {
+  id: string;
+  title: string;
+  description: string;
+  priority: 'low' | 'medium' | 'high';
+  status: TaskStatus;
+  assigned_to: string;
+  created_by: string;
+  estimated_hours?: number;
+  start_location?: string;
+  end_location?: string;
+  target_location?: string;
+  started_at?: string;
+  completed_at?: string;
+  paused_at?: string;
+  total_pause_duration?: number;
+  created_at: string;
+  updated_at: string;
+  assignee?: User;
+  creator?: User;
+  task_materials?: TaskMaterial[];
+  // Новые поля для системы приёмки
+  task_type_id?: string;
+  requires_before_override?: boolean;
+  photo_min_override?: number;
+  checklist_override?: string[];
+  risk_override?: RiskLevel;
+  effective_norm_minutes?: number;
+  effective_checklist_version?: number;
+  effective_photo_min?: number;
+  effective_requires_before?: boolean;
+  submitted_at?: string;
+  approved_at?: string;
+  approved_by?: string;
+  approval_comment?: string;
+  returned_for_revision_at?: string;
+  revision_comment?: string;
+  task_type?: TaskType;
+  photos?: TaskPhoto[];
+  checklist?: TaskChecklist[];
+}

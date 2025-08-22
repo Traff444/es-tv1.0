@@ -17,7 +17,7 @@ export function EarningsToday({ todayEarnings, todayHours }: EarningsTodayProps)
           </div>
           <div>
             <div className="text-sm text-slate-500">Сегодня заработано</div>
-            <div className="text-2xl font-bold">{todayEarnings.toLocaleString()} ₽</div>
+            <div className="text-2xl font-bold">{todayEarnings.toLocaleString()} BYN</div>
           </div>
         </div>
       </Card>

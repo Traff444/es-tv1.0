@@ -252,7 +252,7 @@ export const EmployeeForm: React.FC<EmployeeFormProps> = ({
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Часовая ставка (₽)
+                    Часовая ставка (BYN)
                   </label>
                   <div className="relative">
                     <DollarSign className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" />

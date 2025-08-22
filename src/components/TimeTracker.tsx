@@ -2,11 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { supabase, getCurrentLocation, formatLocation, hasValidCredentials } from '../lib/supabase';
 import { WorkSession } from '../types';
-import { Play, Square, Clock, MapPin, DollarSign, Calendar } from 'lucide-react';
+import { Play, Square, Clock, MapPin, DollarSign, Calendar, ArrowLeft } from 'lucide-react';
 import { format, formatDuration, intervalToDuration } from 'date-fns';
 import { ru } from 'date-fns/locale';
 
-export const TimeTracker: React.FC = () => {
+interface TimeTrackerProps {
+  onNavigate?: (view: string) => void;
+}
+
+export const TimeTracker: React.FC<TimeTrackerProps> = ({ onNavigate }) => {
   const { profile } = useAuth();
 
   if (!hasValidCredentials || !supabase) {
@@ -130,7 +134,16 @@ export const TimeTracker: React.FC = () => {
       const endTime = new Date();
       const startTime = new Date(currentSession.start_time);
       const totalHours = (endTime.getTime() - startTime.getTime()) / (1000 * 60 * 60);
-      const earnings = totalHours * (profile.hourly_rate || 0);
+      
+      // Используем новую систему тарифов для расчета заработка
+      const { data: earningsData, error: earningsError } = await supabase
+        .rpc('calculate_earnings', {
+          user_uuid: profile.id,
+          start_time: startTime.toISOString(),
+          end_time: endTime.toISOString()
+        });
+      
+      const earnings = earningsError ? 0 : (earningsData || 0);
 
       const { error } = await supabase
         .from('work_sessions')
@@ -180,7 +193,18 @@ export const TimeTracker: React.FC = () => {
       {/* Current Session Card */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-semibold text-gray-900">Текущая смена</h2>
+          <div className="flex items-center space-x-4">
+            {onNavigate && (
+              <button
+                onClick={() => onNavigate('dashboard')}
+                className="flex items-center space-x-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 px-3 py-2 rounded-lg transition-colors"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span className="text-sm font-medium">Назад к дашборду</span>
+              </button>
+            )}
+            <h2 className="text-xl font-semibold text-gray-900">Текущая смена</h2>
+          </div>
           <div className="flex items-center space-x-2 text-sm text-gray-500">
             <Clock className="w-4 h-4" />
             <span>{format(currentTime, 'HH:mm:ss', { locale: ru })}</span>
@@ -276,7 +300,7 @@ export const TimeTracker: React.FC = () => {
                   {session.earnings && (
                     <div className="text-sm text-green-600 flex items-center space-x-1">
                       <DollarSign className="w-3 h-3" />
-                      <span>{session.earnings.toFixed(0)} ₽</span>
+                      <span>{session.earnings.toFixed(0)} BYN</span>
                     </div>
                   )}
                 </div>
@@ -309,7 +333,7 @@ export const TimeTracker: React.FC = () => {
             </div>
             <div>
               <div className="text-2xl font-bold text-gray-900">
-                {recentSessions.reduce((acc, session) => acc + (session.earnings || 0), 0).toFixed(0)} ₽
+                {recentSessions.reduce((acc, session) => acc + (session.earnings || 0), 0).toFixed(0)} BYN
               </div>
               <div className="text-sm text-gray-500">Заработано</div>
             </div>

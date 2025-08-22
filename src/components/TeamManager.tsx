@@ -17,7 +17,8 @@ import {
   Phone,
   MapPin,
   Eye,
-  X
+  X,
+  ArrowLeft
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
@@ -31,7 +32,11 @@ interface TeamMember extends User {
   };
 }
 
-export const TeamManager: React.FC = () => {
+interface TeamManagerProps {
+  onNavigate?: (view: string) => void;
+}
+
+export const TeamManager: React.FC<TeamManagerProps> = ({ onNavigate }) => {
   const { profile } = useAuth();
 
   if (!hasValidCredentials || !supabase) {
@@ -216,13 +221,26 @@ export const TeamManager: React.FC = () => {
     <div className="space-y-6">
       {/* Header */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <div className="flex items-center space-x-3 mb-4">
-          <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
-            <Users className="w-6 h-6 text-purple-600" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Управление командой</h1>
-            <p className="text-gray-600">Обзор производительности и контактные данные сотрудников</p>
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center space-x-4">
+            {onNavigate && (
+              <button
+                onClick={() => onNavigate('dashboard')}
+                className="flex items-center space-x-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 px-3 py-2 rounded-lg transition-colors"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span className="text-sm font-medium">Назад к дашборду</span>
+              </button>
+            )}
+            <div className="flex items-center space-x-3">
+              <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
+                <Users className="w-6 h-6 text-purple-600" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">Управление командой</h1>
+                <p className="text-gray-600">Обзор производительности и контактные данные сотрудников</p>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -319,7 +337,7 @@ export const TeamManager: React.FC = () => {
             </div>
             <div>
               <div className="text-2xl font-bold text-gray-900">
-                {teamMembers.reduce((sum, member) => sum + member.stats.totalEarnings, 0).toFixed(0)} ₽
+                {teamMembers.reduce((sum, member) => sum + member.stats.totalEarnings, 0).toFixed(0)} BYN
               </div>
               <div className="text-sm text-gray-500">Общий заработок</div>
             </div>
@@ -372,7 +390,7 @@ export const TeamManager: React.FC = () => {
                   {member.hourly_rate && member.hourly_rate > 0 && (
                     <div className="flex items-center space-x-2 text-sm text-gray-600">
                       <DollarSign className="w-4 h-4" />
-                      <span>{member.hourly_rate} ₽/час</span>
+                      <span>{member.hourly_rate} BYN/час</span>
                     </div>
                   )}
                   <div className="flex items-center space-x-2 text-sm text-gray-600">
@@ -396,7 +414,7 @@ export const TeamManager: React.FC = () => {
                     <div className="text-xs text-gray-500">Среднее в день</div>
                   </div>
                   <div className="text-center p-3 bg-gray-50 rounded-lg">
-                    <div className="text-lg font-bold text-gray-900">{member.stats.totalEarnings.toFixed(0)} ₽</div>
+                    <div className="text-lg font-bold text-gray-900">{member.stats.totalEarnings.toFixed(0)} BYN</div>
                     <div className="text-xs text-gray-500">Заработано</div>
                   </div>
                 </div>
