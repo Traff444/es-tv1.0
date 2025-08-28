@@ -63,8 +63,6 @@ export const Auth: React.FC = () => {
 
   // Check Telegram environment on mount
   useEffect(() => {
-    console.log('🔍 Checking authentication environment...');
-    
     // Initialize Telegram if available
     initTelegram();
     
@@ -73,55 +71,32 @@ export const Auth: React.FC = () => {
         // First check if user is already authenticated
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user) {
-          console.log('✅ User already authenticated:', session.user.id);
           setTelegramLoading(false);
           return; // Don't try to authenticate again
         }
         
         const inTelegram = isTelegramEnvironment();
-        console.log('📱 Telegram environment detected:', inTelegram);
         setIsTelegramEnv(inTelegram);
         
         if (inTelegram) {
           // Try automatic Telegram authentication
-          console.log('🚀 Attempting Telegram authentication...');
           const telegramUser = getTelegramUser();
           
           if (telegramUser) {
-            console.log('👤 Telegram user found, authenticating...', telegramUser);
             const result = await signInWithTelegram(telegramUser);
             
             if (result.error) {
-              console.error('❌ Telegram authentication failed:', result.error);
               setError(`Ошибка входа через Telegram: ${result.error.message}`);
               setShowEmailAuth(true);
-            } else {
-              console.log('✅ Telegram authentication successful');
-              // Force auth state refresh to trigger navigation
-              try {
-                const { data: { session } } = await supabase.auth.getSession();
-                console.log('🔄 Auth session refreshed:', session?.user?.id);
-                
-                // Force page reload to trigger auth state update
-                console.log('🔄 Reloading page to update auth state...');
-                setTimeout(() => {
-                  window.location.reload();
-                }, 500);
-                
-              } catch (refreshError) {
-                console.error('❌ Failed to refresh auth session:', refreshError);
-              }
             }
+            // On success, the useAuth hook will handle the state change.
           } else {
-            console.log('⚠️ No Telegram user data, showing email auth');
             setShowEmailAuth(true);
           }
         } else {
-          console.log('🌐 Web environment, showing email auth');
           setShowEmailAuth(true);
         }
       } catch (error) {
-        console.error('❌ Environment check error:', error);
         setError('Ошибка инициализации');
         setShowEmailAuth(true);
       } finally {

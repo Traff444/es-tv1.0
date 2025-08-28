@@ -8,52 +8,64 @@ export const useAuth = () => {
   const [profile, setProfile] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  console.log('🚨 === useAuth HOOK VERSION 2.0 START ===');
-  console.log('🚨 Timestamp:', new Date().toISOString());
-  console.log('🔑 useAuth hook initialized, state:', { user: user?.id, profile: profile?.id, loading });
-
   useEffect(() => {
     if (!hasValidCredentials) {
-      console.warn('Supabase credentials not configured');
       setLoading(false);
       return;
     }
 
     if (!supabase) {
-      console.error('Supabase client not initialized');
       setLoading(false);
       return;
     }
     let mounted = true;
 
-    const initAuth = async () => {
+    const fetchProfile = async (userId: string) => {
       try {
-        const { data: { session }, error } = await supabase.auth.getSession();
+        const { data, error } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', userId)
+          .maybeSingle();
         
-        if (error) {
-          console.error('Auth session error:', error);
-          if (mounted) {
-            setUser(null);
-            setProfile(null);
-            setLoading(false);
-          }
-          return;
+        if (error && error.code !== 'PGRST116') {
+          throw error;
         }
 
         if (mounted) {
-          setUser(session?.user ?? null);
-          
-          if (session?.user) {
-            console.log('🔍 initAuth: User found, calling fetchProfile for:', session.user.id);
-            fetchProfile(session.user.id);
-          } else {
-            console.log('🔍 initAuth: No user found, setting profile to null');
-            setProfile(null);
-            setLoading(false);
-          }
+          setProfile(data);
         }
       } catch (error) {
-        console.error('Auth initialization error:', error);
+        console.error('Error fetching profile:', error);
+        if (mounted) {
+          setProfile(null);
+        }
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    const handleAuthChange = async (session: any) => {
+      if (mounted) {
+        const currentUser = session?.user ?? null;
+        setUser(currentUser);
+        if (currentUser) {
+          await fetchProfile(currentUser.id);
+        } else {
+          setProfile(null);
+          setLoading(false);
+        }
+      }
+    };
+
+    const initAuth = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        await handleAuthChange(session);
+      } catch (error) {
+        console.error('Error initializing auth:', error);
         if (mounted) {
           setUser(null);
           setProfile(null);
@@ -62,59 +74,11 @@ export const useAuth = () => {
       }
     };
 
-    const fetchProfile = async (userId: string) => {
-      console.log('🔍 fetchProfile called with userId:', userId);
-      try {
-        console.log('🔍 Querying users table for ID:', userId);
-        const { data, error } = await supabase
-          .from('users')
-          .select('*')
-          .eq('id', userId)
-          .maybeSingle();
-        
-        console.log('🔍 Profile query result:', { data, error });
-        
-        if (error && error.code !== 'PGRST116') {
-          console.error('Profile fetch error:', error);
-          if (mounted) {
-            setProfile(null);
-            setLoading(false);
-          }
-          return;
-        }
-
-        if (mounted) {
-          console.log('✅ Setting profile:', data);
-          setProfile(data);
-          setLoading(false);
-        }
-      } catch (error) {
-        console.error('Profile loading error:', error);
-        if (mounted) {
-          setProfile(null);
-          setLoading(false);
-        }
-      }
-    };
-
-    // Инициализация
     initAuth();
 
-    // Слушатель изменений аутентификации
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log('🔍 onAuthStateChange triggered:', event, session?.user?.id);
-        if (mounted) {
-          setUser(session?.user ?? null);
-          if (session?.user) {
-            console.log('🔍 onAuthStateChange: User found, calling fetchProfile for:', session.user.id);
-            fetchProfile(session.user.id);
-          } else {
-            console.log('🔍 onAuthStateChange: No user found, setting profile to null');
-            setProfile(null);
-            setLoading(false);
-          }
-        }
+        await handleAuthChange(session);
       }
     );
 

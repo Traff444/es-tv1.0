@@ -1,22 +1,19 @@
 import React from 'react';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
 import { Auth } from './components/Auth';
 import { Layout } from './components/Layout';
 import { WorkerSuperScreen } from './components/worker/WorkerSuperScreen';
 import { AdminPanel } from './components/AdminPanel';
 import { Dashboard } from './components/Dashboard';
+import { TeamManager } from './components/TeamManager';
+import { MaterialManager } from './components/MaterialManager';
+import { TariffManager } from './components/TariffManager';
 import { Toaster } from './components/ui/toaster';
-import { hasValidCredentials } from './lib/supabase';
 
-function App() {
+const App: React.FC = () => {
   const { user, profile, loading } = useAuth();
-  const [currentView, setCurrentView] = React.useState('dashboard');
 
-  console.log('🎯 === NEW VERSION 2.0 APP LOADED ===');
-  console.log('🎯 Timestamp:', new Date().toISOString());
-  console.log('📋 App state:', { user: user?.id, profile: profile?.id, loading, hasValidCredentials });
-
-  // Show loading spinner while checking authentication
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -28,9 +25,9 @@ function App() {
     );
   }
 
-  // Show auth screen if user is not authenticated or no valid credentials
-  if (!hasValidCredentials) {
-    return (
+  // The Auth component is shown for unauthenticated users and is not part of the main routing.
+  if (!user || !profile) {
+     return (
       <>
         <Auth />
         <Toaster />
@@ -38,68 +35,44 @@ function App() {
     );
   }
 
-  // Show auth screen if user is not authenticated
-  if (!user) {
-    return (
-      <>
-        <Auth />
-        <Toaster />
-      </>
-    );
-  }
-
-  // Show loading while fetching profile (only if we have user but no profile)
-  if (loading && user && !profile) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Загрузка профиля...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Show auth screen if profile is not available
-  if (!profile) {
-    return (
-      <>
-        <Auth />
-        <Toaster />
-      </>
-    );
-  }
-  // Show admin panel for admin users
-  if (profile?.role === 'admin' && currentView === 'admin') {
-    return (
-      <>
-        <Layout currentView={currentView} onNavigate={setCurrentView}>
-          <AdminPanel />
-        </Layout>
-        <Toaster />
-      </>
-    );
-  }
-
-  // Show worker super screen for workers
-  if (profile?.role === 'worker') {
-    return (
-      <>
-        <WorkerSuperScreen />
-        <Toaster />
-      </>
-    );
-  }
-
-  // Show main layout for other roles (manager, director)
   return (
     <>
-      <Layout currentView={currentView} onNavigate={setCurrentView}>
-        <Dashboard currentView={currentView} onNavigate={setCurrentView} />
-      </Layout>
+      <Routes>
+        {/* The worker role has a completely different UI and does not use the main Layout, so it gets its own route. */}
+        {profile.role === 'worker' ? (
+          <Route path="/*" element={<WorkerSuperScreen />} />
+        ) : (
+          /* All other roles (manager, director, admin) share the main Layout. */
+          <Route path="/*" element={<MainLayoutRoutes />} />
+        )}
+      </Routes>
       <Toaster />
     </>
   );
-}
+};
+
+// This component defines the routes accessible within the main Layout.
+const MainLayoutRoutes: React.FC = () => {
+  const { profile } = useAuth();
+
+  return (
+    <Layout>
+      <Routes>
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/team" element={<TeamManager />} />
+        <Route path="/materials" element={<MaterialManager />} />
+        <Route path="/tariffs" element={<TariffManager />} />
+
+        {/* Admin-only route */}
+        {profile?.role === 'admin' && (
+          <Route path="/admin" element={<AdminPanel />} />
+        )}
+
+        {/* Fallback redirect to the dashboard */}
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      </Routes>
+    </Layout>
+  );
+};
 
 export default App;
