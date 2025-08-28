@@ -1,4 +1,5 @@
 import React from 'react';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
 import { Auth } from './components/Auth';
 import { Layout } from './components/Layout';
@@ -6,17 +7,10 @@ import { WorkerSuperScreen } from './components/worker/WorkerSuperScreen';
 import { AdminPanel } from './components/AdminPanel';
 import { Dashboard } from './components/Dashboard';
 import { Toaster } from './components/ui/toaster';
-import { hasValidCredentials } from './lib/supabase';
 
-function App() {
+const App: React.FC = () => {
   const { user, profile, loading } = useAuth();
-  const [currentView, setCurrentView] = React.useState('dashboard');
 
-  console.log('🎯 === NEW VERSION 2.0 APP LOADED ===');
-  console.log('🎯 Timestamp:', new Date().toISOString());
-  console.log('📋 App state:', { user: user?.id, profile: profile?.id, loading, hasValidCredentials });
-
-  // Show loading spinner while checking authentication
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -28,9 +22,10 @@ function App() {
     );
   }
 
-  // Show auth screen if user is not authenticated or no valid credentials
-  if (!hasValidCredentials) {
-    return (
+  // If not authenticated, show the Auth component.
+  // The Auth component itself is not part of the routing structure.
+  if (!user || !profile) {
+     return (
       <>
         <Auth />
         <Toaster />
@@ -38,68 +33,60 @@ function App() {
     );
   }
 
-  // Show auth screen if user is not authenticated
-  if (!user) {
-    return (
-      <>
-        <Auth />
-        <Toaster />
-      </>
-    );
-  }
-
-  // Show loading while fetching profile (only if we have user but no profile)
-  if (loading && user && !profile) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Загрузка профиля...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Show auth screen if profile is not available
-  if (!profile) {
-    return (
-      <>
-        <Auth />
-        <Toaster />
-      </>
-    );
-  }
-  // Show admin panel for admin users
-  if (profile?.role === 'admin' && currentView === 'admin') {
-    return (
-      <>
-        <Layout currentView={currentView} onNavigate={setCurrentView}>
-          <AdminPanel />
-        </Layout>
-        <Toaster />
-      </>
-    );
-  }
-
-  // Show worker super screen for workers
-  if (profile?.role === 'worker') {
-    return (
-      <>
-        <WorkerSuperScreen />
-        <Toaster />
-      </>
-    );
-  }
-
-  // Show main layout for other roles (manager, director)
   return (
     <>
-      <Layout currentView={currentView} onNavigate={setCurrentView}>
-        <Dashboard currentView={currentView} onNavigate={setCurrentView} />
-      </Layout>
+      <Routes>
+        <Route path="/*" element={<MainApp />} />
+      </Routes>
       <Toaster />
     </>
   );
-}
+};
+
+// This component contains the logic to display the correct UI based on the user's role.
+const MainApp: React.FC = () => {
+  const { profile } = useAuth();
+  // This state is temporarily kept to avoid breaking Layout and Dashboard components.
+  // It will be removed in the next step of refactoring.
+  const [currentView, setCurrentView] = React.useState('dashboard');
+
+  if (!profile) {
+    // This case should theoretically not be hit if App.tsx logic is correct,
+    // but it's a good safeguard.
+    return <Navigate to="/" />;
+  }
+
+  // For workers, the UI is simple and doesn't use the main Layout.
+  if (profile.role === 'worker') {
+    return <WorkerSuperScreen />;
+  }
+
+  // For admin, manager, and director, we use the main Layout.
+  // The navigation inside this layout will be refactored next.
+  // NOTE: The logic for switching between AdminPanel and Dashboard is kept for now.
+  // This will be replaced by distinct routes e.g. /admin, /dashboard
+  if (profile.role === 'admin') {
+     return (
+        <Layout currentView={currentView} onNavigate={setCurrentView}>
+          {currentView === 'admin' ? <AdminPanel /> : <Dashboard currentView={currentView} onNavigate={setCurrentView} />}
+        </Layout>
+     )
+  }
+
+  if (profile.role === 'manager' || profile.role === 'director') {
+    return (
+      <Layout currentView={currentView} onNavigate={setCurrentView}>
+        <Dashboard currentView={currentView} onNavigate={setCurrentView} />
+      </Layout>
+    );
+  }
+
+  // Fallback for any other roles or unexpected scenarios.
+  return (
+    <div>
+      <h1>Неизвестная роль пользователя</h1>
+    </div>
+  );
+};
 
 export default App;
