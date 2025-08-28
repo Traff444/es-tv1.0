@@ -1,11 +1,10 @@
 import React from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { signOut } from '../lib/supabase';
 import {
   Zap,
   LogOut,
-  Clock,
-  CheckSquare,
   Package,
   BarChart3,
   Users,
@@ -14,44 +13,29 @@ import {
   DollarSign
 } from 'lucide-react';
 
-type View = 'dashboard' | 'time' | 'tasks' | 'materials' | 'team' | 'tariffs' | 'analytics' | 'admin';
-
 interface LayoutProps {
   children: React.ReactNode;
-  onNavigate?: (view: View) => void;
-  currentView?: View;
 }
 
-export const Layout: React.FC<LayoutProps> = ({ children, onNavigate, currentView }) => {
+export const Layout: React.FC<LayoutProps> = ({ children }) => {
   const { profile } = useAuth();
+  const location = useLocation();
 
   const handleSignOut = async () => {
     await signOut();
   };
 
   const getNavItems = () => {
-    const baseItems = [
-      { icon: Home, label: 'Дашборд', view: 'dashboard', roles: ['manager', 'director'] },
-      { icon: Clock, label: 'Время', view: 'time', roles: ['worker'] },
-      { icon: CheckSquare, label: 'Задачи', view: 'tasks', roles: ['worker', 'manager'] },
+    const navItems = [
+      { icon: Home, label: 'Дашборд', path: '/dashboard', roles: ['manager', 'director', 'admin'] },
+      { icon: Package, label: 'Материалы', path: '/materials', roles: ['manager', 'director'] },
+      { icon: Users, label: 'Команда', path: '/team', roles: ['manager', 'director'] },
+      { icon: DollarSign, label: 'Тарифы', path: '/tariffs', roles: ['manager', 'director'] },
+      { icon: BarChart3, label: 'Аналитика', path: '/analytics', roles: ['director'] },
+      { icon: Settings, label: 'Админ', path: '/admin', roles: ['admin'] },
     ];
 
-    const managerItems = [
-      { icon: Package, label: 'Материалы', view: 'materials', roles: ['manager', 'director'] },
-      { icon: Users, label: 'Команда', view: 'team', roles: ['manager', 'director'] },
-      { icon: DollarSign, label: 'Тарифы', view: 'tariffs', roles: ['manager', 'director'] },
-    ];
-
-    const directorItems = [
-      { icon: BarChart3, label: 'Аналитика', view: 'analytics', roles: ['director'] },
-    ];
-
-    const adminItems = [
-      { icon: Settings, label: 'Админ', view: 'admin', roles: ['admin'] },
-    ];
-
-    return [...baseItems, ...managerItems, ...directorItems, ...adminItems]
-      .filter(item => item.roles.includes(profile?.role || ''));
+    return navItems.filter(item => item.roles.includes(profile?.role || ''));
   };
 
   return (
@@ -90,20 +74,23 @@ export const Layout: React.FC<LayoutProps> = ({ children, onNavigate, currentVie
       <nav className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex space-x-1 overflow-x-auto py-2">
-            {getNavItems().map((item) => (
-              <button
-                key={item.view}
-                onClick={() => onNavigate?.(item.view)}
-                className={`flex items-center space-x-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors whitespace-nowrap min-w-max ${
-                  currentView === item.view
-                    ? 'text-blue-600 bg-blue-50'
-                    : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50'
-                }`}
-              >
-                <item.icon className="w-4 h-4" />
-                <span>{item.label}</span>
-              </button>
-            ))}
+            {getNavItems().map((item) => {
+              const isActive = location.pathname.startsWith(item.path);
+              return (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  className={`flex items-center space-x-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors whitespace-nowrap min-w-max ${
+                    isActive
+                      ? 'text-blue-600 bg-blue-50'
+                      : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50'
+                  }`}
+                >
+                  <item.icon className="w-4 h-4" />
+                  <span>{item.label}</span>
+                </Link>
+              );
+            })}
           </div>
         </div>
       </nav>

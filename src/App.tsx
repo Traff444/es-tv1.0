@@ -6,6 +6,9 @@ import { Layout } from './components/Layout';
 import { WorkerSuperScreen } from './components/worker/WorkerSuperScreen';
 import { AdminPanel } from './components/AdminPanel';
 import { Dashboard } from './components/Dashboard';
+import { TeamManager } from './components/TeamManager';
+import { MaterialManager } from './components/MaterialManager';
+import { TariffManager } from './components/TariffManager';
 import { Toaster } from './components/ui/toaster';
 
 const App: React.FC = () => {
@@ -22,8 +25,7 @@ const App: React.FC = () => {
     );
   }
 
-  // If not authenticated, show the Auth component.
-  // The Auth component itself is not part of the routing structure.
+  // The Auth component is shown for unauthenticated users and is not part of the main routing.
   if (!user || !profile) {
      return (
       <>
@@ -36,56 +38,40 @@ const App: React.FC = () => {
   return (
     <>
       <Routes>
-        <Route path="/*" element={<MainApp />} />
+        {/* The worker role has a completely different UI and does not use the main Layout, so it gets its own route. */}
+        {profile.role === 'worker' ? (
+          <Route path="/*" element={<WorkerSuperScreen />} />
+        ) : (
+          /* All other roles (manager, director, admin) share the main Layout. */
+          <Route path="/*" element={<MainLayoutRoutes />} />
+        )}
       </Routes>
       <Toaster />
     </>
   );
 };
 
-// This component contains the logic to display the correct UI based on the user's role.
-const MainApp: React.FC = () => {
+// This component defines the routes accessible within the main Layout.
+const MainLayoutRoutes: React.FC = () => {
   const { profile } = useAuth();
-  // This state is temporarily kept to avoid breaking Layout and Dashboard components.
-  // It will be removed in the next step of refactoring.
-  const [currentView, setCurrentView] = React.useState('dashboard');
 
-  if (!profile) {
-    // This case should theoretically not be hit if App.tsx logic is correct,
-    // but it's a good safeguard.
-    return <Navigate to="/" />;
-  }
-
-  // For workers, the UI is simple and doesn't use the main Layout.
-  if (profile.role === 'worker') {
-    return <WorkerSuperScreen />;
-  }
-
-  // For admin, manager, and director, we use the main Layout.
-  // The navigation inside this layout will be refactored next.
-  // NOTE: The logic for switching between AdminPanel and Dashboard is kept for now.
-  // This will be replaced by distinct routes e.g. /admin, /dashboard
-  if (profile.role === 'admin') {
-     return (
-        <Layout currentView={currentView} onNavigate={setCurrentView}>
-          {currentView === 'admin' ? <AdminPanel /> : <Dashboard currentView={currentView} onNavigate={setCurrentView} />}
-        </Layout>
-     )
-  }
-
-  if (profile.role === 'manager' || profile.role === 'director') {
-    return (
-      <Layout currentView={currentView} onNavigate={setCurrentView}>
-        <Dashboard currentView={currentView} onNavigate={setCurrentView} />
-      </Layout>
-    );
-  }
-
-  // Fallback for any other roles or unexpected scenarios.
   return (
-    <div>
-      <h1>Неизвестная роль пользователя</h1>
-    </div>
+    <Layout>
+      <Routes>
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/team" element={<TeamManager />} />
+        <Route path="/materials" element={<MaterialManager />} />
+        <Route path="/tariffs" element={<TariffManager />} />
+
+        {/* Admin-only route */}
+        {profile?.role === 'admin' && (
+          <Route path="/admin" element={<AdminPanel />} />
+        )}
+
+        {/* Fallback redirect to the dashboard */}
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      </Routes>
+    </Layout>
   );
 };
 
