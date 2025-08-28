@@ -18,7 +18,7 @@ export interface Task {
   title: string;
   description: string;
   priority: 'low' | 'medium' | 'high';
-  status: 'pending' | 'in_progress' | 'completed' | 'paused';
+  status: TaskStatus;
   assigned_to: string;
   created_by: string;
   estimated_hours?: number;
@@ -27,6 +27,8 @@ export interface Task {
   target_location?: string;
   started_at?: string;
   completed_at?: string;
+  submitted_at?: string;
+  approved_at?: string;
   paused_at?: string;
   total_pause_duration?: number;
   created_at: string;
@@ -34,6 +36,8 @@ export interface Task {
   assignee?: User;
   creator?: User;
   task_materials?: TaskMaterial[];
+  task_type_id?: string;
+  task_type?: TaskType;
 }
 
 export interface TaskMaterial {
@@ -190,7 +194,7 @@ export interface Holiday {
 // Система фото-чек-листов и приёмки
 export type RiskLevel = 'low' | 'medium' | 'high';
 export type PhotoType = 'before' | 'after';
-export type TaskStatus = 'ready' | 'in_progress' | 'awaiting_photos' | 'awaiting_approval' | 'done';
+export type TaskStatus = 'pending' | 'in_progress' | 'paused' | 'awaiting_photos' | 'awaiting_approval' | 'completed' | 'done' | 'returned';
 
 export interface TaskType {
   id: string;

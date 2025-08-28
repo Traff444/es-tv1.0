@@ -12,6 +12,10 @@ function App() {
   const { user, profile, loading } = useAuth();
   const [currentView, setCurrentView] = React.useState('dashboard');
 
+  console.log('🎯 === NEW VERSION 2.0 APP LOADED ===');
+  console.log('🎯 Timestamp:', new Date().toISOString());
+  console.log('📋 App state:', { user: user?.id, profile: profile?.id, loading, hasValidCredentials });
+
   // Show loading spinner while checking authentication
   if (loading) {
     return (
@@ -44,8 +48,8 @@ function App() {
     );
   }
 
-  // Show loading while fetching profile
-  if (loading) {
+  // Show loading while fetching profile (only if we have user but no profile)
+  if (loading && user && !profile) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">

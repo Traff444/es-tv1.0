@@ -31,6 +31,7 @@ interface TaskUpdate {
   total_pause_duration?: number;
   paused_at?: string | null;
   completed_at?: string;
+  submitted_at?: string;
   end_location?: string | null;
 }
 
@@ -1046,8 +1047,9 @@ export function WorkerSuperScreen() {
       }
 
       let updateData: TaskUpdate = {
-        status: 'completed',
+        status: 'awaiting_approval',
         completed_at: new Date().toISOString(),
+        submitted_at: new Date().toISOString(),
         end_location: location,
         updated_at: new Date().toISOString(),
       };
@@ -1070,8 +1072,8 @@ export function WorkerSuperScreen() {
       }
       
       toast({
-        title: "Задача завершена",
-        description: "Задача успешно завершена!",
+        title: "Задача отправлена на приёмку",
+        description: "Задача отправлена менеджеру для проверки. Вы получите уведомление о результатах.",
         variant: "success",
       });
     } catch (error) {

@@ -7,6 +7,7 @@ import { TeamManager } from './TeamManager';
 import { TaskMonitor } from './TaskMonitor';
 import { RealTimeStats } from './RealTimeStats';
 import { TariffManager } from './TariffManager';
+import { TelegramIntegration } from './TelegramIntegration';
 import { supabase, hasValidCredentials } from '../lib/supabase';
 import { 
   Clock, 
@@ -28,7 +29,8 @@ import {
   Filter,
   Search,
   Play,
-  Square
+  Square,
+  MessageCircle
 } from 'lucide-react';
 import { format, startOfDay, endOfDay } from 'date-fns';
 import { ru } from 'date-fns/locale';
@@ -317,7 +319,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentView = 'dashboard',
         {/* Быстрые действия */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-6">Быстрые действия</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
             <button
               onClick={() => onNavigate?.('tasks')}
               className="flex items-center space-x-3 p-4 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
@@ -342,13 +344,21 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentView = 'dashboard',
               <span className="font-medium text-gray-900">Материалы</span>
             </button>
             
-                         <button
-               onClick={() => onNavigate?.('tariffs')}
-               className="flex items-center space-x-3 p-4 bg-green-50 rounded-lg hover:bg-green-100 transition-colors"
-             >
-               <DollarSign className="w-5 h-5 text-green-600" />
-               <span className="font-medium text-gray-900">Тарифы</span>
-             </button>
+            <button
+              onClick={() => onNavigate?.('tariffs')}
+              className="flex items-center space-x-3 p-4 bg-green-50 rounded-lg hover:bg-green-100 transition-colors"
+            >
+              <DollarSign className="w-5 h-5 text-green-600" />
+              <span className="font-medium text-gray-900">Тарифы</span>
+            </button>
+
+            <button
+              onClick={() => onNavigate?.('telegram')}
+              className="flex items-center space-x-3 p-4 bg-cyan-50 rounded-lg hover:bg-cyan-100 transition-colors"
+            >
+              <MessageCircle className="w-5 h-5 text-cyan-600" />
+              <span className="font-medium text-gray-900">Telegram</span>
+            </button>
              
              <button
                onClick={() => onNavigate?.('analytics')}
@@ -418,6 +428,21 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentView = 'dashboard',
       {currentView === 'tariffs' && (profile?.role === 'manager' || profile?.role === 'director') && (
         <div>
           <TariffManager onNavigate={onNavigate} />
+        </div>
+      )}
+
+      {currentView === 'telegram' && (profile?.role === 'manager' || profile?.role === 'director' || profile?.role === 'admin') && (
+        <div>
+          <div className="mb-6">
+            <button
+              onClick={() => onNavigate?.('dashboard')}
+              className="text-blue-600 hover:text-blue-700 text-sm font-medium"
+            >
+              ← Назад к дашборду
+            </button>
+          </div>
+          <h2 className="text-xl font-semibold text-gray-900 mb-6">Настройки Telegram</h2>
+          <TelegramIntegration />
         </div>
       )}
 

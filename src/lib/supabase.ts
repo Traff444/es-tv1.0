@@ -26,6 +26,32 @@ export const signUp = async (email: string, password: string, fullName: string) 
       },
     },
   });
+  
+  // Если регистрация успешна, создаем профиль в таблице users
+  if (data.user && !error) {
+    console.log('✅ Пользователь создан в auth.users, создаем профиль...');
+    
+    const { data: profileData, error: profileError } = await supabase
+      .from('users')
+      .insert({
+        id: data.user.id,
+        email: email,
+        full_name: fullName.trim(),
+        role: 'worker', // роль по умолчанию
+        is_active: true,
+        hourly_rate: 2.0
+      })
+      .select()
+      .single();
+      
+    if (profileError) {
+      console.log('❌ Ошибка создания профиля:', profileError.message);
+      // Не возвращаем ошибку, так как пользователь уже создан в auth
+    } else {
+      console.log('✅ Профиль создан успешно в таблице users');
+    }
+  }
+  
   return { data, error };
 };
 
@@ -79,6 +105,213 @@ export const signOut = async () => {
   }
   
   return { error };
+};
+
+// Telegram authentication
+export const signInWithTelegram = async (telegramUser: any) => {
+  if (!supabase) {
+    throw new Error('Supabase client not initialized');
+  }
+
+  try {
+    console.log('🔍 Starting Telegram authentication for user:', telegramUser.id);
+    console.log('👤 Telegram user data:', JSON.stringify(telegramUser, null, 2));
+    
+    // 1. Check if user exists in telegram_users table
+    console.log('🔍 Step 1: Looking for existing telegram_users record...');
+    const { data: telegramUserRecord, error: telegramError } = await supabase
+      .from('telegram_users')
+      .select('*, users(*)')
+      .eq('telegram_id', telegramUser.id)
+      .single();
+
+    console.log('📋 Telegram users query result:');
+    console.log('  - Data:', JSON.stringify(telegramUserRecord, null, 2));
+    console.log('  - Error:', telegramError);
+
+    if (telegramUserRecord && telegramUserRecord.users) {
+      // Existing user - try to sign in
+      console.log('✅ Found existing user, attempting sign in...');
+      
+      const profile = telegramUserRecord.users as any;
+      const password = `telegram_${telegramUser.id}`;
+      
+      console.log('🔑 Using email:', profile.email);
+      console.log('🔑 Using password format:', password);
+      
+      // Try to sign in with existing credentials
+      const { data: authData, error: signInError } = await supabase.auth.signInWithPassword({
+        email: profile.email,
+        password: password
+      });
+
+      console.log('📋 Sign in attempt result:');
+      console.log('  - Success:', !!authData.user);
+      console.log('  - User ID:', authData.user?.id);
+      console.log('  - Error:', signInError);
+
+      if (signInError && signInError.message?.includes('Invalid login credentials')) {
+        // User exists in DB but not in Auth - create auth user
+        console.log('📝 Creating auth user for existing profile...');
+        
+        const { error: signUpError } = await supabase.auth.signUp({
+          email: profile.email,
+          password: password,
+          options: {
+            data: {
+              telegram_id: telegramUser.id,
+              full_name: profile.full_name
+            }
+          }
+        });
+
+        if (signUpError) {
+          console.error('❌ Sign up error:', signUpError);
+          throw signUpError;
+        }
+
+        console.log('✅ Auth user created, now signing in...');
+        
+        // Now try to sign in again
+        return await supabase.auth.signInWithPassword({
+          email: profile.email,
+          password: password
+        });
+      }
+
+      if (signInError) {
+        console.error('❌ Sign in error:', signInError);
+        throw signInError;
+      }
+
+      console.log('✅ Sign in successful!');
+      
+      // Check if user profile exists in users table
+      const { data: userProfile, error: profileCheckError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', authData.user.id)
+        .maybeSingle();
+      
+      if (!userProfile && !profileCheckError) {
+        console.log('⚠️ User profile missing in users table, creating...');
+        
+        const { error: createProfileError } = await supabase
+          .from('users')
+          .insert({
+            id: authData.user.id,
+            email: profile.email,
+            full_name: profile.full_name,
+            role: 'worker',
+            hourly_rate: 15.00,
+            is_active: true
+          });
+        
+        if (createProfileError) {
+          console.error('❌ Failed to create missing profile:', createProfileError);
+        } else {
+          console.log('✅ Missing profile created');
+        }
+      }
+      
+      return { data: authData, error: null };
+    } else {
+      // New user - create complete profile
+      console.log('🆕 Creating new user profile...');
+      
+      const email = `telegram_${telegramUser.id}@electroservice.by`;
+      const password = `telegram_${telegramUser.id}`;
+      const fullName = `${telegramUser.first_name} ${telegramUser.last_name || ''}`.trim();
+
+      console.log('🔧 New user details:');
+      console.log('  - Email:', email);
+      console.log('  - Full name:', fullName);
+      console.log('  - Telegram ID:', telegramUser.id);
+
+      // Generate UUID for new user
+      const newUserId = crypto.randomUUID();
+      console.log('🆔 Generated user ID:', newUserId);
+
+      // Create user profile
+      console.log('📝 Step 1: Creating user profile...');
+      const { error: profileError } = await supabase
+        .from('users')
+        .insert({
+          id: newUserId,
+          email: email,
+          full_name: fullName,
+          role: 'worker', // Default role
+          hourly_rate: 15.00,
+          is_active: true
+        });
+
+      if (profileError) {
+        console.error('❌ Profile creation error:', profileError);
+        throw profileError;
+      }
+      console.log('✅ User profile created');
+
+      // Create telegram_users record
+      console.log('📝 Step 2: Creating telegram_users record...');
+      const { error: telegramLinkError } = await supabase
+        .from('telegram_users')
+        .insert({
+          user_id: newUserId,
+          telegram_id: telegramUser.id,
+          telegram_username: telegramUser.username || null,
+          telegram_first_name: telegramUser.first_name,
+          telegram_last_name: telegramUser.last_name || null
+        });
+
+      if (telegramLinkError) {
+        console.error('❌ Telegram link creation error:', telegramLinkError);
+        throw telegramLinkError;
+      }
+      console.log('✅ Telegram link created');
+
+      // Create auth user
+      console.log('📝 Step 3: Creating Supabase auth user...');
+      const { error: signUpError } = await supabase.auth.signUp({
+        email: email,
+        password: password,
+        options: {
+          data: {
+            telegram_id: telegramUser.id,
+            full_name: fullName
+          }
+        }
+      });
+
+      if (signUpError) {
+        console.error('❌ Auth user creation error:', signUpError);
+        throw signUpError;
+      }
+      console.log('✅ Auth user created');
+
+      // Sign in the new user
+      console.log('📝 Step 4: Signing in new user...');
+      const signInResult = await supabase.auth.signInWithPassword({
+        email: email,
+        password: password
+      });
+
+      console.log('📋 New user sign in result:');
+      console.log('  - Success:', !!signInResult.data.user);
+      console.log('  - User ID:', signInResult.data.user?.id);
+      console.log('  - Error:', signInResult.error);
+
+      if (signInResult.error) {
+        console.error('❌ New user sign in error:', signInResult.error);
+        throw signInResult.error;
+      }
+
+      console.log('✅ New user signed in successfully!');
+      return signInResult;
+    }
+  } catch (error) {
+    console.error('❌ Telegram authentication error:', error);
+    return { data: null, error };
+  }
 };
 
 export const getCurrentUser = async () => {
