@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { supabase, getCurrentLocation, formatLocation, hasValidCredentials } from '../lib/supabase';
 import { Task, User, Material } from '../types';
@@ -277,11 +278,9 @@ const MapSelectorModal: React.FC<MapSelectorModalProps> = ({ center, onSelect, o
   );
 };
 
-interface TaskManagerProps {
-  onNavigate?: (view: string) => void;
-}
+interface TaskManagerProps {}
 
-export const TaskManager: React.FC<TaskManagerProps> = ({ onNavigate }) => {
+export const TaskManager: React.FC<TaskManagerProps> = () => {
   const { profile } = useAuth();
 
   if (!hasValidCredentials || !supabase) {
@@ -551,14 +550,14 @@ export const TaskManager: React.FC<TaskManagerProps> = ({ onNavigate }) => {
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
           <div className="flex items-center space-x-4">
-            {profile?.role === 'manager' && onNavigate && (
-              <button
-                onClick={() => onNavigate('dashboard')}
+            {profile?.role === 'manager' && (
+              <Link
+                to="/dashboard"
                 className="flex items-center space-x-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 px-3 py-2 rounded-lg transition-colors"
               >
                 <ArrowLeft className="w-4 h-4" />
                 <span className="text-sm font-medium">Назад к дашборду</span>
-              </button>
+              </Link>
             )}
             <div>
               <h1 className="text-2xl font-bold text-gray-900">
