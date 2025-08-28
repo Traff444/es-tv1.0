@@ -25,6 +25,7 @@ export const Dashboard: React.FC = () => {
   const [activeWorkers, setActiveWorkers] = useState<User[]>([]);
 
   useEffect(() => {
+    // Only fetch data if the user is a manager or director
     if (profile?.role === 'manager' || profile?.role === 'director') {
       fetchDashboardData();
     } else {
@@ -37,7 +38,6 @@ export const Dashboard: React.FC = () => {
     
     setLoading(true);
     try {
-      // Fetch active workers (users with an active work session)
       const { data: activeSessions, error: sessionsError } = await supabase
         .from('work_sessions')
         .select('user:users(id, full_name)')
@@ -60,23 +60,18 @@ export const Dashboard: React.FC = () => {
 
   const getWelcomeMessage = () => {
     const hour = new Date().getHours();
-    let greeting = 'Добро пожаловать';
-    
-    if (hour < 12) greeting = 'Доброе утро';
-    else if (hour < 18) greeting = 'Добрый день';
-    else greeting = 'Добрый вечер';
-
-    return `${greeting}, ${profile?.full_name}!`;
+    if (hour < 12) return `Доброе утро, ${profile?.full_name}!`;
+    if (hour < 18) return `Добрый день, ${profile?.full_name}!`;
+    return `Добрый вечер, ${profile?.full_name}!`;
   };
 
-  // Render a simplified loading state or null if not a manager/director
+  // The Dashboard is only for managers and directors. Other roles are handled by the router in App.tsx.
   if (profile?.role !== 'manager' && profile?.role !== 'director') {
     return null;
   }
 
   return (
     <div className="space-y-6">
-      {/* Заголовок */}
       <div className="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-2xl p-8 text-white">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
@@ -85,8 +80,8 @@ export const Dashboard: React.FC = () => {
             </div>
             <div>
               <h1 className="text-2xl font-bold">{getWelcomeMessage()}</h1>
-              <p className="text-blue-100">
-                {profile?.role === 'manager' ? 'Менеджер' : 'Директор'} • Панель управления
+              <p className="text-blue-100 capitalize">
+                {profile?.role} • Панель управления
               </p>
             </div>
           </div>
@@ -97,12 +92,9 @@ export const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Статистика в реальном времени */}
       <RealTimeStats refreshInterval={30000} showTrends={true} />
 
-      {/* Основной контент */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Мониторинг задач */}
         <div className="lg:col-span-2">
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
             <div className="flex items-center justify-between mb-6">
@@ -117,15 +109,10 @@ export const Dashboard: React.FC = () => {
                 Все задачи →
               </Link>
             </div>
-
-            <TaskMonitor
-              showOnlyActive={true}
-              maxTasks={5}
-            />
+            <TaskMonitor showOnlyActive={true} maxTasks={5} />
           </div>
         </div>
 
-        {/* Активные рабочие */}
         <div className="lg:col-span-1">
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
             <div className="flex items-center justify-between mb-6">
@@ -170,18 +157,16 @@ export const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Быстрые действия */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-6">Быстрые действия</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
           <Link
-            to="/tasks/new" // Assuming a route for creating a new task
+            to="/tasks/new"
             className="flex items-center space-x-3 p-4 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
           >
             <Plus className="w-5 h-5 text-blue-600" />
             <span className="font-medium text-gray-900">Создать задачу</span>
           </Link>
-
           <Link
             to="/team"
             className="flex items-center space-x-3 p-4 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors"
@@ -189,7 +174,6 @@ export const Dashboard: React.FC = () => {
             <Users className="w-5 h-5 text-purple-600" />
             <span className="font-medium text-gray-900">Управление командой</span>
           </Link>
-
           <Link
             to="/materials"
             className="flex items-center space-x-3 p-4 bg-orange-50 rounded-lg hover:bg-orange-100 transition-colors"
@@ -197,7 +181,6 @@ export const Dashboard: React.FC = () => {
             <Package className="w-5 h-5 text-orange-600" />
             <span className="font-medium text-gray-900">Материалы</span>
           </Link>
-
           <Link
             to="/tariffs"
             className="flex items-center space-x-3 p-4 bg-green-50 rounded-lg hover:bg-green-100 transition-colors"
@@ -205,15 +188,13 @@ export const Dashboard: React.FC = () => {
             <DollarSign className="w-5 h-5 text-green-600" />
             <span className="font-medium text-gray-900">Тарифы</span>
           </Link>
-
           <Link
-            to="/telegram" // Assuming a route for Telegram settings
+            to="/telegram"
             className="flex items-center space-x-3 p-4 bg-cyan-50 rounded-lg hover:bg-cyan-100 transition-colors"
           >
             <MessageCircle className="w-5 h-5 text-cyan-600" />
             <span className="font-medium text-gray-900">Telegram</span>
           </Link>
-
            {profile?.role === 'director' && (
              <Link
                to="/analytics"

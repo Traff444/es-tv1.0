@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { supabase, hasValidCredentials } from '../lib/supabase';
 import {
@@ -38,11 +39,9 @@ interface EditingItem
     Partial<Warehouse>,
     Partial<Supplier> {}
 
-interface MaterialManagerProps {
-  onNavigate?: (view: string) => void;
-}
+interface MaterialManagerProps {}
 
-export const MaterialManager: React.FC<MaterialManagerProps> = ({ onNavigate }) => {
+export const MaterialManager: React.FC<MaterialManagerProps> = () => {
   const { profile } = useAuth();
 
   const [materials, setMaterials] = useState<Material[]>([]);
@@ -192,15 +191,13 @@ export const MaterialManager: React.FC<MaterialManagerProps> = ({ onNavigate }) 
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center space-x-4">
-            {onNavigate && (
-              <button
-                onClick={() => onNavigate('dashboard')}
-                className="flex items-center space-x-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 px-3 py-2 rounded-lg transition-colors"
-              >
-                <ArrowLeft className="w-4 h-4" />
-                <span className="text-sm font-medium">Назад к дашборду</span>
-              </button>
-            )}
+            <Link
+              to="/dashboard"
+              className="flex items-center space-x-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 px-3 py-2 rounded-lg transition-colors"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span className="text-sm font-medium">Назад к дашборду</span>
+            </Link>
             <div className="flex items-center space-x-3">
               <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center">
                 <Package className="w-6 h-6 text-orange-600" />
