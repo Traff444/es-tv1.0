@@ -91,32 +91,51 @@ export const TelegramIntegration: React.FC = () => {
       // Проверяем, не занят ли этот Telegram ID
       const { data: existingUser } = await supabase
         .from('telegram_users')
-        .select('user_id, users(full_name)')
+        .select('user_id')
         .eq('telegram_id', numericId)
         .eq('is_active', true)
-        .single();
+        .maybeSingle();
 
-      if (existingUser && existingUser.user_id !== user?.id) {
+      if (existingUser && existingUser.user_id && existingUser.user_id !== user?.id) {
         toast({
           variant: "destructive",
           title: "Ошибка",
-          description: `Этот Telegram ID уже используется пользователем ${existingUser.users?.full_name}`
+          description: `Этот Telegram ID уже используется другим пользователем`
         });
         return;
       }
 
-      // Если уже есть запись, обновляем ее, иначе создаем новую
-      const { error } = await supabase
+      // Если уже есть запись у текущего пользователя, обновляем её, иначе создаём новую
+      const { data: existingByUser } = await supabase
         .from('telegram_users')
-        .upsert({
-          user_id: user?.id,
-          telegram_id: numericId,
-          chat_id: numericId, // Для личных сообщений chat_id = telegram_id
-          is_active: true,
-          notifications_enabled: true
-        }, {
-          onConflict: 'user_id'
-        });
+        .select('id')
+        .eq('user_id', user?.id)
+        .maybeSingle();
+
+      let error: any = null;
+      if (existingByUser?.id) {
+        const { error: updateError } = await supabase
+          .from('telegram_users')
+          .update({
+            telegram_id: numericId,
+            chat_id: numericId,
+            is_active: true,
+            notifications_enabled: true
+          })
+          .eq('id', existingByUser.id);
+        error = updateError;
+      } else {
+        const { error: insertError } = await supabase
+          .from('telegram_users')
+          .insert({
+            user_id: user?.id as string,
+            telegram_id: numericId,
+            chat_id: numericId,
+            is_active: true,
+            notifications_enabled: true
+          });
+        error = insertError;
+      }
 
       if (error) {
         console.error('Ошибка связывания аккаунта:', error);

@@ -57,9 +57,9 @@ serve(async (req) => {
 
   try {
     // Получаем переменные окружения
-    const TELEGRAM_BOT_TOKEN = Deno.env.get('TELEGRAM_BOT_TOKEN')
-    const SUPABASE_URL = Deno.env.get('SUPABASE_URL')
-    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+    const TELEGRAM_BOT_TOKEN = Deno.env.get('TELEGRAM_MANAGER_BOT_TOKEN') || Deno.env.get('TELEGRAM_BOT_TOKEN')
+    const SUPABASE_URL = Deno.env.get('PROJECT_URL')
+    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SERVICE_ROLE_KEY')
 
     if (!TELEGRAM_BOT_TOKEN) {
       throw new Error('TELEGRAM_BOT_TOKEN не настроен')
@@ -77,18 +77,58 @@ serve(async (req) => {
     console.log('Получены данные для уведомления:', requestData)
 
     const taskData: TaskNotificationData = requestData
+    const managerOverrideId: number | undefined = requestData.manager_telegram_id
 
     // Получаем данные менеджера для отправки уведомления
-    const { data: managerData, error: managerError } = await supabase
-      .rpc('get_manager_telegram_data', { task_uuid: taskData.task_id })
-
-    if (managerError) {
-      console.error('Ошибка получения данных менеджера:', managerError)
-      throw new Error(`Ошибка получения данных менеджера: ${managerError.message}`)
+    let chatId: number | null = null
+    let managerId: string | null = null
+    try {
+      const { data: managerData, error: managerError } = await supabase
+        .rpc('get_manager_telegram_data', { task_uuid: taskData.task_id })
+      if (managerError) {
+        console.warn('get_manager_telegram_data error:', managerError)
+      }
+      if (managerData && managerData.length > 0) {
+        chatId = managerData[0].chat_id
+        managerId = managerData[0].manager_id
+      }
+    } catch (e) {
+      console.warn('RPC get_manager_telegram_data failed:', e)
     }
 
-    if (!managerData || managerData.length === 0) {
-      console.log('Менеджер с Telegram не найден для задачи:', taskData.task_id)
+    // Фолбэк 1: если RPC не вернул — пробуем по создателю задачи
+    if (!chatId) {
+      try {
+        const { data: taskRow } = await supabase
+          .from('tasks')
+          .select('created_by')
+          .eq('id', taskData.task_id)
+          .maybeSingle()
+        const creatorId = taskRow?.created_by
+        if (creatorId) {
+          const { data: tg } = await supabase
+            .from('telegram_users')
+            .select('telegram_id, user_id')
+            .eq('user_id', creatorId)
+            .maybeSingle()
+          if (tg?.telegram_id) {
+            chatId = tg.telegram_id
+            managerId = tg.user_id
+          }
+        }
+      } catch (e) {
+        console.warn('Fallback by task.created_by failed:', e)
+      }
+    }
+
+    // Фолбэк 2: явная переадресация через manager_telegram_id из запроса (для тестов)
+    if (!chatId && managerOverrideId && Number.isFinite(managerOverrideId)) {
+      chatId = managerOverrideId
+      managerId = managerId || 'override'
+    }
+
+    if (!chatId) {
+      console.log('Менеджер с Telegram не найден для задачи и нет override:', taskData.task_id)
       return new Response(
         JSON.stringify({ 
           success: false, 
@@ -100,8 +140,6 @@ serve(async (req) => {
         }
       )
     }
-
-    const manager = managerData[0]
 
     if (!manager.notifications_enabled) {
       console.log('Уведомления отключены для менеджера:', manager.manager_id)
@@ -171,14 +209,14 @@ serve(async (req) => {
 
     // Отправляем основное уведомление
     const message: TelegramMessage = {
-      chat_id: manager.chat_id,
+      chat_id: chatId,
       text: messageText,
       parse_mode: 'Markdown',
       reply_markup: keyboard
     }
 
     console.log('Отправляем сообщение в Telegram:', {
-      chat_id: manager.chat_id,
+      chat_id: chatId,
       task_id: taskData.task_id
     })
 
@@ -213,7 +251,7 @@ serve(async (req) => {
         
         try {
           const photoMessage: TelegramPhoto = {
-            chat_id: manager.chat_id,
+            chat_id: chatId,
             photo: photoUrl,
             caption: `Фото ${i + 1} к задаче: ${taskData.task_title}`
           }
@@ -242,7 +280,7 @@ serve(async (req) => {
       const { error: logError } = await supabase
         .rpc('log_task_notification', {
           p_task_id: taskData.task_id,
-          p_manager_id: manager.manager_id,
+          p_manager_id: managerId,
           p_worker_id: taskData.worker_id,
           p_telegram_message_id: messageId,
           p_notification_type: 'task_completion'

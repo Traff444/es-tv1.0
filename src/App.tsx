@@ -10,6 +10,9 @@ import { TeamManager } from './components/TeamManager';
 import { MaterialManager } from './components/MaterialManager';
 import { TariffManager } from './components/TariffManager';
 import { Toaster } from './components/ui/toaster';
+import { TaskManager } from './components/TaskManager';
+import { TelegramIntegration } from './components/TelegramIntegration';
+import KanbanPage from './components/KanbanPage';
 
 const App: React.FC = () => {
   const { user, profile, loading } = useAuth();
@@ -61,7 +64,10 @@ const MainLayoutRoutes: React.FC = () => {
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/team" element={<TeamManager />} />
         <Route path="/materials" element={<MaterialManager />} />
+        <Route path="/kanban" element={<KanbanPage />} />
         <Route path="/tariffs" element={<TariffManager />} />
+        <Route path="/tasks/*" element={<TaskManager />} />
+        <Route path="/telegram" element={<TelegramIntegration />} />
 
         {/* Admin-only route */}
         {profile?.role === 'admin' && (

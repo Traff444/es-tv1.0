@@ -5,6 +5,7 @@ import { supabase, getCurrentLocation, formatLocation, hasValidCredentials } fro
 import { Task, User, Material } from '../types';
 import { MapButton } from './MapDisplay';
 import { TaskPhotoChecklist } from './TaskPhotoChecklist';
+import KanbanBoard from './KanbanBoard';
 import { TaskApproval } from './TaskApproval';
 import { 
   Plus, 
@@ -306,6 +307,7 @@ export const TaskManager: React.FC<TaskManagerProps> = () => {
   const [showPhotoChecklist, setShowPhotoChecklist] = useState(false);
   const [selectedTaskForChecklist, setSelectedTaskForChecklist] = useState<Task | null>(null);
   const [showTaskApproval, setShowTaskApproval] = useState(false);
+  const [showKanban, setShowKanban] = useState(false);
 
   useEffect(() => {
     fetchTasks();
@@ -315,6 +317,22 @@ export const TaskManager: React.FC<TaskManagerProps> = () => {
       fetchTaskTypes();
     }
   }, [profile]);
+
+  // Авто-открытие формы создания для маршрута /tasks/new
+  useEffect(() => {
+    try {
+      if (typeof window !== 'undefined' && window.location.pathname.endsWith('/tasks/new')) {
+        setShowCreateForm(true);
+      }
+      // Авто-открытие Канбан при ?kanban=1
+      if (typeof window !== 'undefined') {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('kanban') === '1') {
+          setShowKanban(true);
+        }
+      }
+    } catch {}
+  }, []);
 
   const fetchTasks = async () => {
     if (!profile) return;
@@ -587,6 +605,13 @@ export const TaskManager: React.FC<TaskManagerProps> = () => {
               >
                 <Eye className="w-4 h-4" />
                 <span>Приёмка задач</span>
+              </button>
+              <button
+                onClick={() => setShowKanban(true)}
+                className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-indigo-700 transition-colors flex items-center space-x-2"
+              >
+                <Eye className="w-4 h-4" />
+                <span>Канбан</span>
               </button>
             </div>
           )}
@@ -1006,6 +1031,24 @@ export const TaskManager: React.FC<TaskManagerProps> = () => {
           onClose={handleTaskApprovalClose}
           onRefresh={fetchTasks}
         />
+      )}
+
+      {/* Kanban Board Modal */}
+      {showKanban && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl shadow-xl max-w-7xl w-full max-h-[90vh] overflow-y-auto p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-xl font-semibold text-gray-900">Канбан — задачи</h2>
+              <button
+                onClick={() => setShowKanban(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                Закрыть
+              </button>
+            </div>
+            <KanbanBoard />
+          </div>
+        </div>
       )}
     </div>
   );

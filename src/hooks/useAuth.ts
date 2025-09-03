@@ -19,9 +19,30 @@ export const useAuth = () => {
       return;
     }
     let mounted = true;
+    const startTs = Date.now();
+
+    // One-time storage versioning to avoid stale sb-* tokens after deploys
+    try {
+      const CURRENT_VERSION = '2025-08-29-auth-v2';
+      const storedVersion = localStorage.getItem('APP_VERSION');
+      if (storedVersion !== CURRENT_VERSION) {
+        // Clear stale Supabase auth tokens
+        Object.keys(localStorage)
+          .filter((k) => k.startsWith('sb-') && k.includes('-auth-token'))
+          .forEach((k) => localStorage.removeItem(k));
+        localStorage.setItem('APP_VERSION', CURRENT_VERSION);
+      }
+    } catch {}
+    const fallbackTimer = setTimeout(() => {
+      if (mounted && loading) {
+        console.warn('[useAuth] Fallback timeout: forcing loading=false');
+        setLoading(false);
+      }
+    }, 8000);
 
     const fetchProfile = async (userId: string) => {
       try {
+        console.log('[useAuth] fetchProfile start', { userId });
         const { data, error } = await supabase
           .from('users')
           .select('*')
@@ -33,12 +54,23 @@ export const useAuth = () => {
         }
 
         if (mounted) {
+          console.log('[useAuth] fetchProfile done', { hasData: !!data, ms: Date.now() - startTs });
           setProfile(data);
+          // Auto sign-out if profile missing (inactive or inconsistent state)
+          if (!data) {
+            try {
+              await supabase.auth.signOut();
+            } catch {}
+          }
         }
       } catch (error) {
         console.error('Error fetching profile:', error);
         if (mounted) {
           setProfile(null);
+          // On profile error, also sign out to reset broken session
+          try {
+            await supabase.auth.signOut();
+          } catch {}
         }
       } finally {
         if (mounted) {
@@ -62,8 +94,21 @@ export const useAuth = () => {
 
     const initAuth = async () => {
       try {
+        console.log('[useAuth] initAuth.getSession');
         const { data: { session } } = await supabase.auth.getSession();
-        await handleAuthChange(session);
+        console.log('[useAuth] initAuth.session', { hasUser: !!session?.user });
+        // Доп. попытка рефреша, если сессии нет, но есть persisted token
+        if (!session?.user) {
+          try {
+            await supabase.auth.refreshSession();
+            const { data: { session: session2 } } = await supabase.auth.getSession();
+            await handleAuthChange(session2);
+          } catch {
+            await handleAuthChange(session);
+          }
+        } else {
+          await handleAuthChange(session);
+        }
       } catch (error) {
         console.error('Error initializing auth:', error);
         if (mounted) {
@@ -85,6 +130,7 @@ export const useAuth = () => {
     return () => {
       mounted = false;
       subscription.unsubscribe();
+      clearTimeout(fallbackTimer);
     };
   }, []);
 

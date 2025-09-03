@@ -68,22 +68,36 @@ export const Auth: React.FC = () => {
     
     const checkEnvironment = async () => {
       try {
+        const params = new URLSearchParams(window.location.search);
+        const debug = params.get('debug') === '1';
+        const forceWeb = params.get('force_web') === '1';
+        // Защита: если мы явно НЕ в Telegram окружении, не пытаться ждать его
+        if (debug) console.log('[Auth] init debug=true force_web=', forceWeb);
+        
         // First check if user is already authenticated
         const { data: { session } } = await supabase.auth.getSession();
+        if (debug) console.log('[Auth] existing session:', !!session?.user, session?.user?.id);
         if (session?.user) {
           setTelegramLoading(false);
           return; // Don't try to authenticate again
         }
         
-        const inTelegram = isTelegramEnvironment();
+        const detectedTelegram = isTelegramEnvironment();
+        const inTelegram = forceWeb ? false : detectedTelegram;
+        if (debug) console.log('[Auth] detectedTelegram=', detectedTelegram, 'inTelegram(final)=', inTelegram);
         setIsTelegramEnv(inTelegram);
         
         if (inTelegram) {
           // Try automatic Telegram authentication
           const telegramUser = getTelegramUser();
+          if (debug) console.log('[Auth] telegramUser present=', !!telegramUser);
           
           if (telegramUser) {
             const result = await signInWithTelegram(telegramUser);
+            if (debug) console.log('[Auth] signInWithTelegram result:', {
+              hasUser: !!result.data?.user,
+              error: result.error?.message
+            });
             
             if (result.error) {
               setError(`Ошибка входа через Telegram: ${result.error.message}`);
@@ -94,6 +108,7 @@ export const Auth: React.FC = () => {
             setShowEmailAuth(true);
           }
         } else {
+          // Жестко раскрываем email-форму, чтобы избежать зависаний
           setShowEmailAuth(true);
         }
       } catch (error) {
@@ -106,7 +121,15 @@ export const Auth: React.FC = () => {
     
     // Small delay to ensure Telegram WebApp is fully loaded
     const timer = setTimeout(checkEnvironment, 500);
-    return () => clearTimeout(timer);
+    // Hard fallback: if через 8 сек всё ещё loading, показываем email-форму
+    const failover = setTimeout(() => {
+      if (telegramLoading) {
+        console.log('[Auth] failover -> showEmailAuth');
+        setShowEmailAuth(true);
+        setTelegramLoading(false);
+      }
+    }, 8000);
+    return () => { clearTimeout(timer); clearTimeout(failover); };
   }, []);
 
   const onSubmit = async (data: AuthFormData) => {
@@ -295,6 +318,27 @@ export const Auth: React.FC = () => {
                 ? 'Уже есть аккаунт? Войти'
                 : 'Нет аккаунта? Зарегистрироваться'}
             </button>
+
+            {/* Reset login button */}
+            <div className="mt-3">
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    await supabase.auth.signOut();
+                  } catch {}
+                  try {
+                    Object.keys(localStorage)
+                      .filter(k => k.startsWith('sb-') && k.includes('-auth-token'))
+                      .forEach(k => localStorage.removeItem(k));
+                  } catch {}
+                  window.location.reload();
+                }}
+                className="text-gray-500 hover:text-gray-700 text-sm"
+              >
+                Сбросить вход (очистить сессию)
+              </button>
+            </div>
           </div>
         </div>
       </div>

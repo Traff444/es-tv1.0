@@ -1,0 +1,17 @@
+# Правильные ключи Supabase для ЭлектроСервис
+
+## URL Supabase:
+https://enyewzeskpiqueogmssp.supabase.co
+
+## Anon Key (полный, в одной строке):
+eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVueWV3emVza3BpcXVlb2dtc3NwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYyOTA4MDcsImV4cCI6MjA3MTg2NjgwN30.KdkzBPdw6lrCE2LW2epl9JDtcOjSccW8rkon4DVrINE
+
+## Содержимое .env.local:
+# Supabase Configuration
+VITE_SUPABASE_URL=https://enyewzeskpiqueogmssp.supabase.co
+VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVueWV3emVza3BpcXVlb2dtc3NwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYyOTA4MDcsImV4cCI6MjA3MTg2NjgwN30.KdkzBPdw6lrCE2LW2epl9JDtcOjSccW8rkon4DVrINE
+
+## Важно:
+- Ключ должен быть в ОДНОЙ строке
+- Не должно быть переносов строк в ключе
+- URL и ключ проверены и работают

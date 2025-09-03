@@ -50,11 +50,12 @@ serve(async (req) => {
   try {
     // Получаем переменные окружения
     const TELEGRAM_BOT_TOKEN = Deno.env.get('TELEGRAM_BOT_TOKEN')
-    const SUPABASE_URL = Deno.env.get('SUPABASE_URL')
-    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+    const TELEGRAM_MANAGER_BOT_TOKEN = Deno.env.get('TELEGRAM_MANAGER_BOT_TOKEN')
+    const SUPABASE_URL = Deno.env.get('PROJECT_URL')
+    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SERVICE_ROLE_KEY')
 
-    if (!TELEGRAM_BOT_TOKEN) {
-      throw new Error('TELEGRAM_BOT_TOKEN не настроен')
+    if (!TELEGRAM_BOT_TOKEN && !TELEGRAM_MANAGER_BOT_TOKEN) {
+      throw new Error('Ни один токен бота не настроен')
     }
 
     if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
@@ -64,18 +65,28 @@ serve(async (req) => {
     // Инициализируем Supabase клиент
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
+    // Определяем какой токен использовать по query параметру (?bot=manager)
+    // Это надёжнее, чем пытаться извлекать bot_id из update
+    const url = new URL(req.url)
+    const botParam = url.searchParams.get('bot')
+
     // Парсим webhook данные от Telegram
     const update: TelegramUpdate = await req.json()
     console.log('Получен webhook от Telegram:', update.update_id)
 
+    // Выбор токена: если ?bot=manager — используем менеджерский, иначе обычный
+    const useManager = botParam === 'manager'
+    const botToken = useManager ? (TELEGRAM_MANAGER_BOT_TOKEN || TELEGRAM_BOT_TOKEN) : (TELEGRAM_BOT_TOKEN || TELEGRAM_MANAGER_BOT_TOKEN)
+    console.log('Определен тип бота по query:', useManager ? 'Manager' : 'Worker')
+
     // Обрабатываем callback query (нажатие на inline кнопки)
     if (update.callback_query) {
-      await handleCallbackQuery(update.callback_query, supabase, TELEGRAM_BOT_TOKEN)
+      await handleCallbackQuery(update.callback_query, supabase, botToken)
     }
 
     // Обрабатываем обычные сообщения
     if (update.message) {
-      await handleMessage(update.message, supabase, TELEGRAM_BOT_TOKEN)
+      await handleMessage(update.message, supabase, botToken, useManager)
     }
 
     return new Response(
@@ -223,26 +234,37 @@ async function handleCallbackQuery(
 async function handleMessage(
   message: TelegramMessage, 
   supabase: any, 
-  botToken: string
+  botToken: string,
+  isManagerBot: boolean
 ) {
   const { from, chat, text } = message
 
   console.log('Получено сообщение:', text, 'от пользователя:', from.id)
 
   // Обрабатываем команду /start
-  if (text === '/start') {
-    await handleStartCommand(chat.id, from, supabase, botToken)
+  if (text && text.toLowerCase().startsWith('/start')) {
+    await handleStartCommand(chat.id, from, supabase, botToken, isManagerBot)
     return
   }
 
   // Обрабатываем другие команды
+  if (text && text.trim().toLowerCase().startsWith('/help')) {
+    await sendHelpMessage(chat.id, botToken, isManagerBot)
+    return
+  }
+
+  if (text && text.trim().toLowerCase() === '/ping') {
+    await sendTelegramMessage(chat.id, `✅ Pong! Your id: ${from.id}`, undefined, botToken)
+    return
+  }
+
   if (text?.startsWith('/')) {
     await handleUnknownCommand(chat.id, botToken)
     return
   }
 
   // Для обычных сообщений отправляем справку
-  await sendHelpMessage(chat.id, botToken)
+  await sendHelpMessage(chat.id, botToken, isManagerBot)
 }
 
 // Обработка команды /start
@@ -250,9 +272,10 @@ async function handleStartCommand(
   chatId: number,
   from: TelegramUser,
   supabase: any,
-  botToken: string
+  botToken: string,
+  isManagerBot: boolean
 ) {
-  const welcomeMessage = `👋 Добро пожаловать в *ЭлектроСервис*!
+  const welcomeManager = `👋 Добро пожаловать в *ЭлектроСервис*!
 
 Этот бот предназначен для менеджеров и директоров компании.
 
@@ -269,7 +292,24 @@ async function handleStartCommand(
 
 ❓ Для справки отправьте /help`
 
-  await sendTelegramMessage(chatId, welcomeMessage, 'Markdown', botToken)
+  const welcomeWorker = `👋 Добро пожаловать в *ЭлектроСервис*!
+
+Этот бот предназначен для *рабочих*. 
+
+📲 *Что вы будете получать:*
+• Уведомления от менеджера по задачам
+• Сообщения о статусе приёмки
+• Комментарии и запросы на дополнительные фото
+
+🔗 *Связка аккаунта (если ещё не связали):*
+1. Войдите в веб-интерфейс
+2. Откройте раздел "Telegram"
+3. Введите ваш Telegram ID: \`${from.id}\`
+4. Нажмите "Связать"
+
+❓ Команда /help — список возможностей`
+
+  await sendTelegramMessage(chatId, isManagerBot ? welcomeManager : welcomeWorker, 'Markdown', botToken)
 }
 
 // Обработка неизвестной команды
@@ -286,24 +326,25 @@ async function handleUnknownCommand(chatId: number, botToken: string) {
 }
 
 // Отправка справки
-async function sendHelpMessage(chatId: number, botToken: string) {
-  const helpMessage = `📋 *Справка по ЭлектроСервис боту*
+async function sendHelpMessage(chatId: number, botToken: string, isManagerBot: boolean) {
+  const helpManager = `📋 *Справка по ЭлектроСервис (менеджер)*
 
-🎯 *Назначение:*
-Этот бот предназначен для уведомлений менеджеров о завершенных задачах.
-
-⚡ *Функции:*
-• Получение уведомлений о завершенных задачах
-• Просмотр фото-отчетов
-• Принятие/отклонение работ
+• Уведомления о завершённых задачах
+• Просмотр фото-отчётов
+• Приёмка/возврат работ
 • Запрос дополнительных фото
 
-🔗 *Настройка:*
-Для получения уведомлений свяжите ваш Telegram аккаунт в веб-интерфейсе системы (Настройки → Telegram ID: \`${chatId}\`)
+🔗 Связка ID: Настройки профиля → Telegram ID: \`${chatId}\``
 
-❓ Вопросы? Обратитесь к администратору системы.`
+  const helpWorker = `📋 *Справка по ЭлектроСервис (рабочий)*
 
-  await sendTelegramMessage(chatId, helpMessage, 'Markdown', botToken)
+• Уведомления от менеджера по задачам
+• Статус приёмки (принято/возвращено)
+• Комментарии и требования к фото
+
+🔗 Связка ID: Раздел "Telegram" в вебе → Telegram ID: \`${chatId}\``
+
+  await sendTelegramMessage(chatId, isManagerBot ? helpManager : helpWorker, 'Markdown', botToken)
 }
 
 // Функции действий с задачами

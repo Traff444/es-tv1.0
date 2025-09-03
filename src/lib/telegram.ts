@@ -63,40 +63,44 @@ export class TelegramWebApp {
     const hasTelegram = hasWindow && !!window.Telegram?.WebApp;
     const hasNgrok = hasWindow && window.location.hostname.includes('ngrok');
     const hasUser = hasWindow && !!window.Telegram?.WebApp?.initDataUnsafe?.user;
+    const params = hasWindow ? new URLSearchParams(window.location.search) : null;
+    const forceTelegram = params?.get('force_telegram') === '1';
+    const hasTestUserParam = Boolean(params?.get('telegram_id'));
     
     console.log('🔍 Environment check:', {
       hasWindow,
       hasTelegram,
       hasNgrok,
       hasUser,
+      forceTelegram,
+      hasTestUserParam,
       hostname: hasWindow ? window.location.hostname : 'N/A'
     });
     
-    return hasTelegram && (hasUser || hasNgrok);
+    // Будем считать окружением Telegram только если есть реальный пользователь
+    // или явно указан тестовый режим/параметры. Просто ngrok больше не является сигналом.
+    return hasTelegram && (hasUser || forceTelegram || hasTestUserParam);
   }
 
   public getTelegramUser() {
     console.log('🔍 Getting Telegram user...');
     
+    // Разрешаем тестовый сценарий с параметром telegram_id даже в браузере
+    const urlParams = new URLSearchParams(window.location.search);
+    const testUserId = urlParams.get('telegram_id');
+    if (testUserId) {
+      console.log('🧪 Using test Telegram ID from URL:', testUserId);
+      return {
+        id: parseInt(testUserId),
+        first_name: 'Тестовый',
+        last_name: 'Пользователь',
+        username: 'test_user',
+        language_code: 'ru'
+      };
+    }
+
     if (!this.isTelegramEnvironment()) {
-      console.log('🌐 Not in Telegram environment, checking for test mode...');
-      
-      // Check URL parameters for testing
-      const urlParams = new URLSearchParams(window.location.search);
-      const testUserId = urlParams.get('telegram_id');
-      
-      if (testUserId) {
-        console.log('🧪 Using test Telegram ID from URL:', testUserId);
-        return {
-          id: parseInt(testUserId),
-          first_name: 'Тестовый',
-          last_name: 'Пользователь',
-          username: 'test_user',
-          language_code: 'ru'
-        };
-      }
-      
-      console.log('❌ No Telegram user data available');
+      console.log('🌐 Not in Telegram environment and no test user; returning null');
       return null;
     }
 

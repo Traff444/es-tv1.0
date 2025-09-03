@@ -10,7 +10,8 @@ import {
   Users,
   Settings,
   Home,
-  DollarSign
+  DollarSign,
+  CheckSquare
 } from 'lucide-react';
 
 interface LayoutProps {
@@ -28,6 +29,8 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
   const getNavItems = () => {
     const navItems = [
       { icon: Home, label: 'Дашборд', path: '/dashboard', roles: ['manager', 'director', 'admin'] },
+      { icon: CheckSquare, label: 'Задачи', path: '/tasks', roles: ['manager', 'director'] },
+      { icon: CheckSquare, label: 'Канбан', path: '/kanban', roles: ['manager', 'director'] },
       { icon: Package, label: 'Материалы', path: '/materials', roles: ['manager', 'director'] },
       { icon: Users, label: 'Команда', path: '/team', roles: ['manager', 'director'] },
       { icon: DollarSign, label: 'Тарифы', path: '/tariffs', roles: ['manager', 'director'] },

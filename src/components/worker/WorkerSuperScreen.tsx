@@ -140,6 +140,33 @@ export function WorkerSuperScreen() {
     }
   }, [profile]);
 
+  // Realtime: подписка на изменения задач для текущего рабочего
+  useEffect(() => {
+    if (!profile || !supabase) return;
+    const workerId = profile.id;
+
+    const channel = supabase
+      .channel(`tasks-worker-${workerId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'tasks', filter: `assigned_to=eq.${workerId}` },
+        (payload) => {
+          log('Realtime update for tasks', { type: payload.eventType, new: payload.new, old: payload.old });
+          // Небольшая задержка, чтобы БД успела применить каскадные изменения
+          setTimeout(() => fetchTasks(), 400);
+        }
+      )
+      .subscribe((status) => {
+        log('Realtime channel status', { status });
+      });
+
+    return () => {
+      try {
+        supabase.removeChannel(channel);
+      } catch {}
+    };
+  }, [profile?.id]);
+
   // Автоматически начинаем задачу, если есть смена но нет активной задачи
   useEffect(() => {
     if (currentSession && !currentTask && tasks.length > 0 && !loading) {
@@ -1007,7 +1034,7 @@ export function WorkerSuperScreen() {
     // Проверяем общее количество фото
     const { data: allPhotos } = await supabase
       .from('task_photos')
-      .select('*')
+      .select('photo_url, photo_type')
       .eq('task_id', taskId);
 
     if (!allPhotos || allPhotos.length < photoMin) {
@@ -1022,7 +1049,7 @@ export function WorkerSuperScreen() {
     // Проверяем наличие фото результата
     const { data: resultPhotos } = await supabase
       .from('task_photos')
-      .select('*')
+      .select('id')
       .eq('task_id', taskId)
       .eq('photo_type', 'after');
 
@@ -1076,6 +1103,29 @@ export function WorkerSuperScreen() {
         description: "Задача отправлена менеджеру для проверки. Вы получите уведомление о результатах.",
         variant: "success",
       });
+
+      // Отправляем уведомление менеджеру через Edge Function
+      try {
+        const photos = (allPhotos || [])
+          .map((p: any) => p.photo_url)
+          .filter((u: string | null) => Boolean(u));
+
+        const payload = {
+          task_id: taskId,
+          worker_id: profile!.id,
+          worker_name: profile!.full_name,
+          task_title: task.title,
+          task_description: task.description,
+          completed_at: new Date().toISOString(),
+          photos: photos,
+        };
+
+        await supabase.functions.invoke('telegram-notifications', {
+          body: payload,
+        });
+      } catch (notifyError) {
+        console.warn('Notify manager failed (non-blocking):', notifyError);
+      }
     } catch (error) {
       console.error('Error completing task:', error);
       toast({
