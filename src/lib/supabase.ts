@@ -136,160 +136,33 @@ export const signInWithTelegram = async (telegramUser: any) => {
     console.log('  - Error:', telegramError);
 
     if (telegramUserRecord && telegramUserRecord.users) {
-      // Existing user - try to sign in
+      // Existing mapping: attempt password-based sign-in with known convention
       console.log('✅ Found existing user, attempting sign in...');
-      
       const profile = telegramUserRecord.users as any;
       const password = `telegram_${telegramUser.id}`;
-      
-      console.log('🔑 Using email:', profile.email);
-      console.log('🔑 Using password format:', password);
-      
-      // Try to sign in with existing credentials
-      const { data: authData, error: signInError } = await supabase.auth.signInWithPassword({
+
+      // Try primary email from mapping
+      let { data: authData, error: signInError } = await supabase.auth.signInWithPassword({
         email: profile.email,
-        password: password
+        password,
       });
-
-      console.log('📋 Sign in attempt result:');
-      console.log('  - Success:', !!authData.user);
-      console.log('  - User ID:', authData.user?.id);
-      console.log('  - Error:', signInError);
-
-      if (signInError && signInError.message?.includes('Invalid login credentials')) {
-        // User exists in DB but not in Auth - create auth user
-        console.log('📝 Creating auth user for existing profile...');
-        
-        const { error: signUpError } = await supabase.auth.signUp({
-          email: profile.email,
-          password: password,
-          options: {
-            data: {
-              telegram_id: telegramUser.id,
-              full_name: profile.full_name
-            }
-          }
-        });
-
-        if (signUpError) {
-          console.error('❌ Sign up error:', signUpError);
-          throw signUpError;
-        }
-
-        console.log('✅ Auth user created, now signing in...');
-        
-        // Now try to sign in again
-        return await supabase.auth.signInWithPassword({
-          email: profile.email,
-          password: password
-        });
+      if (signInError) {
+        console.warn('⚠️ Primary sign-in failed, trying fallback telegram email...', signInError.message);
+        // Fallback: try telegram_email
+        const fallbackEmail = `telegram_${telegramUser.id}@electroservice.by`;
+        const res2 = await supabase.auth.signInWithPassword({ email: fallbackEmail, password });
+        authData = res2.data; signInError = res2.error;
       }
 
       if (signInError) {
-        console.error('❌ Sign in error:', signInError);
-        throw signInError;
+        console.error('❌ Telegram sign-in failed:', signInError.message);
+        return { data: null, error: new Error('telegram_auth_failed') } as any;
       }
-
-      console.log('✅ Sign in successful!');
-      
-      // Check if user profile exists in users table
-      const { data: userProfile, error: profileCheckError } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', authData.user.id)
-        .maybeSingle();
-      
-      if (!userProfile && !profileCheckError) {
-        console.log('⚠️ User profile missing in users table, creating...');
-        
-        const { error: createProfileError } = await supabase
-          .from('users')
-          .insert({
-            id: authData.user.id,
-            email: profile.email,
-            full_name: profile.full_name,
-            role: 'worker',
-            hourly_rate: 15.00,
-            is_active: true
-          });
-        
-        if (createProfileError) {
-          console.error('❌ Failed to create missing profile:', createProfileError);
-        } else {
-          console.log('✅ Missing profile created');
-        }
-      }
-      
+      console.log('✅ Telegram sign-in successful');
       return { data: authData, error: null };
     } else {
-      // New user – create auth user first to satisfy RLS, then profile links
-      console.log('🆕 Creating new user via Telegram...');
-
-      const email = `telegram_${telegramUser.id}@electroservice.by`;
-      const password = `telegram_${telegramUser.id}`;
-      const fullName = `${telegramUser.first_name} ${telegramUser.last_name || ''}`.trim();
-
-      console.log('🔧 New user details:', { email, fullName, telegram_id: telegramUser.id });
-
-      // Step 1: Sign up auth user (id will be used for RLS-safe inserts)
-      const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: { telegram_id: telegramUser.id, full_name: fullName }
-        }
-      });
-      if (signUpErr && !String(signUpErr.message || '').toLowerCase().includes('already')) {
-        console.error('❌ Auth signUp failed:', signUpErr);
-        throw signUpErr;
-      }
-
-      // Step 2: Sign in to obtain session (required for RLS)
-      const { data: authData, error: authErr } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-      if (authErr || !authData.user) {
-        console.error('❌ Auth signIn failed:', authErr);
-        throw authErr || new Error('Auth signIn failed');
-      }
-
-      const authUserId = authData.user.id;
-      console.log('🆔 Authenticated as:', authUserId);
-
-      // Step 3: Upsert profile in users with auth.uid() to pass RLS
-      const { error: upsertProfileErr } = await supabase
-        .from('users')
-        .upsert({
-          id: authUserId,
-          email,
-          full_name: fullName,
-          role: 'worker',
-          hourly_rate: 15.0,
-          is_active: true,
-        });
-      if (upsertProfileErr) {
-        console.error('❌ users upsert failed:', upsertProfileErr);
-        throw upsertProfileErr;
-      }
-
-      // Step 4: Link telegram_users (upsert by telegram_id)
-      const { error: upsertLinkErr } = await supabase
-        .from('telegram_users')
-        .upsert({
-          user_id: authUserId,
-          telegram_id: telegramUser.id,
-          telegram_username: telegramUser.username || null,
-          telegram_first_name: telegramUser.first_name,
-          telegram_last_name: telegramUser.last_name || null,
-        }, { onConflict: 'telegram_id' as any });
-      if (upsertLinkErr) {
-        console.error('❌ telegram_users upsert failed:', upsertLinkErr);
-        throw upsertLinkErr;
-      }
-
-      console.log('✅ Telegram user created and linked successfully');
-      return { data: authData, error: null };
+      console.warn('⚠️ Telegram user not linked in telegram_users');
+      return { data: null, error: new Error('telegram_user_not_linked') } as any;
     }
   } catch (error) {
     console.error('❌ Telegram authentication error:', error);

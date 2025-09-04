@@ -74,13 +74,9 @@ export const Auth: React.FC = () => {
         // Защита: если мы явно НЕ в Telegram окружении, не пытаться ждать его
         if (debug) console.log('[Auth] init debug=true force_web=', forceWeb);
         
-        // First check if user is already authenticated
+        // First check current session (used only for pure web flow)
         const { data: { session } } = await supabase.auth.getSession();
         if (debug) console.log('[Auth] existing session:', !!session?.user, session?.user?.id);
-        if (session?.user) {
-          setTelegramLoading(false);
-          return; // Don't try to authenticate again
-        }
         
         const detectedTelegram = isTelegramEnvironment();
         const inTelegram = forceWeb ? false : detectedTelegram;
@@ -88,25 +84,25 @@ export const Auth: React.FC = () => {
         setIsTelegramEnv(inTelegram);
         
         if (inTelegram) {
-          // Try automatic Telegram authentication
+          // Force Telegram auth on every open. Do not show email form in Telegram.
+          try {
+            await supabase.auth.signOut();
+          } catch {}
           const telegramUser = getTelegramUser();
           if (debug) console.log('[Auth] telegramUser present=', !!telegramUser);
-          
           if (telegramUser) {
             const result = await signInWithTelegram(telegramUser);
             if (debug) console.log('[Auth] signInWithTelegram result:', {
               hasUser: !!result.data?.user,
               error: result.error?.message
             });
-            
             if (result.error) {
               setError(`Ошибка входа через Telegram: ${result.error.message}`);
-              setShowEmailAuth(true);
             }
-            // On success, the useAuth hook will handle the state change.
           } else {
-            setShowEmailAuth(true);
+            setError('Не удалось получить данные Telegram пользователя');
           }
+          setShowEmailAuth(false);
         } else {
           // Жестко раскрываем email-форму, чтобы избежать зависаний
           setShowEmailAuth(true);
@@ -125,7 +121,10 @@ export const Auth: React.FC = () => {
     const failover = setTimeout(() => {
       if (telegramLoading) {
         console.log('[Auth] failover -> showEmailAuth');
-        setShowEmailAuth(true);
+        // Do not show email form in Telegram environment
+        if (!isTelegramEnv) {
+          setShowEmailAuth(true);
+        }
         setTelegramLoading(false);
       }
     }, 8000);

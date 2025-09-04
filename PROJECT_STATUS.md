@@ -1254,6 +1254,16 @@ await supabase.rpc('process_task_approval', {
 - Edge Functions: JWT verification выключен для telegram-webhook (чтобы Telegram мог вызывать без Authorization).
 - Скрипты: start_testing.sh, setup_manager_bot.sh; сохранение NGROK_URL.txt; обновление меню ботов с cache-busting.
 
+### Updates (04.09.2025)
+- Frontend прод развернут на Vercel, стабильный алиас:
+  - Worker Mini App: `https://electroservice-telegram.vercel.app/mini`
+  - Manager Web: `https://electroservice-telegram.vercel.app/manager`
+- Меню обоих ботов переведены на стабильные Vercel URL.
+- Исправлен вход в Mini App: принудительная Telegram-детекция, убран email fallback в Telegram среде.
+- Улучшена детекция пользователя: парсим `tgWebAppData` из hash при необходимости.
+- Dev-скрипт `start_testing.sh`: добавлен флаг `VERCEL_PROD=1` для запрета перезаписи меню ботов на ngrok при локальном запуске.
+- Обновлён `CORRECT_KEYS.txt`: добавлены Vercel token, токены ботов, стабильные прод-URL.
+
 ### Что проверить вручную
 1) Создать задачу → у рабочего задача появляется сразу (realtime).  
 2) Рабочий завершает с фото → менеджер получает карточку с кнопками в @ElectroServiceManagerBot.  

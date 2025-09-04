@@ -1105,7 +1105,11 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!profile) return;
+    if (!profile) {
+      // Prevent stuck loading state when profile isn't ready yet
+      alert('Профиль ещё не загружен. Обновите страницу и попробуйте снова.');
+      return;
+    }
 
     setLoading(true);
     try {

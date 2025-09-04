@@ -66,6 +66,8 @@ export class TelegramWebApp {
     const params = hasWindow ? new URLSearchParams(window.location.search) : null;
     const forceTelegram = params?.get('force_telegram') === '1';
     const hasTestUserParam = Boolean(params?.get('telegram_id'));
+    const hash = hasWindow ? (window.location.hash || '') : '';
+    const hasTgWebAppData = hasWindow && hash.includes('tgWebAppData=');
     
     console.log('🔍 Environment check:', {
       hasWindow,
@@ -74,12 +76,13 @@ export class TelegramWebApp {
       hasUser,
       forceTelegram,
       hasTestUserParam,
+      hasTgWebAppData,
       hostname: hasWindow ? window.location.hostname : 'N/A'
     });
     
-    // Будем считать окружением Telegram только если есть реальный пользователь
-    // или явно указан тестовый режим/параметры. Просто ngrok больше не является сигналом.
-    return hasTelegram && (hasUser || forceTelegram || hasTestUserParam);
+    // Считаем окружением Telegram, если доступен WebApp и есть пользователь
+    // или указаны флаги/test-параметры, или присутствует tgWebAppData в hash
+    return hasTelegram && (hasUser || forceTelegram || hasTestUserParam || hasTgWebAppData);
   }
 
   public getTelegramUser() {
@@ -104,10 +107,33 @@ export class TelegramWebApp {
       return null;
     }
 
-    const user = window.Telegram!.WebApp.initDataUnsafe.user;
-    console.log('👤 Telegram user data:', user);
-    
-    return user || null;
+    // Основной источник — initDataUnsafe.user
+    let user = window.Telegram!.WebApp.initDataUnsafe.user;
+    if (user) {
+      console.log('👤 Telegram user (initDataUnsafe):', user);
+      return user;
+    }
+
+    // Фоллбек: парсим tgWebAppData из hash (Telegram Desktop/Web иногда не заполняет initDataUnsafe)
+    try {
+      const hash = window.location.hash || '';
+      const m = hash.match(/tgWebAppData=([^&]+)/);
+      if (m && m[1]) {
+        const decoded = decodeURIComponent(m[1]);
+        const kv = new URLSearchParams(decoded);
+        const userStr = kv.get('user');
+        if (userStr) {
+          const parsed = JSON.parse(decodeURIComponent(userStr));
+          console.log('👤 Telegram user (parsed from tgWebAppData hash):', parsed);
+          return parsed;
+        }
+      }
+    } catch (e) {
+      console.warn('⚠️ Failed to parse tgWebAppData from hash:', e);
+    }
+
+    console.log('⚠️ Telegram user not found');
+    return null;
   }
 
   public showAlert(message: string) {

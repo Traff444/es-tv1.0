@@ -1,0 +1,29 @@
+{
+  "name": "electroservice-telegram",
+  "version": 2,
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "framework": "vite",
+  "headers": [
+    {
+      "source": "/index.html",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store" }
+      ]
+    },
+    {
+      "source": "/assets/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+      ]
+    }
+  ]
+  ,
+  "rewrites": [
+    { "source": "/mini", "destination": "/?force_telegram=1" },
+    { "source": "/manager", "destination": "/?manager=1" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}
+
+
