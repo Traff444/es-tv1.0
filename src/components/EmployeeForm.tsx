@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { supabase, hasValidCredentials } from '../lib/supabase';
 import { User } from '../types';
+import logger from '../lib/logger';
 import {
   User as UserIcon,
   Save,
@@ -141,7 +142,7 @@ export const EmployeeForm: React.FC<EmployeeFormProps> = ({
 
       onSuccess();
     } catch (error) {
-      console.error('Error saving employee:', error);
+      logger.error('Error saving employee:', error);
       alert(`Ошибка при сохранении: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`);
     } finally {
       setLoading(false);

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { supabase, hasValidCredentials } from '../lib/supabase';
+import logger from '../lib/logger';
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -199,7 +200,7 @@ export const RealTimeStats: React.FC<RealTimeStatsProps> = ({
       setStats(newStats);
       setLastUpdate(now);
     } catch (error) {
-      console.error('Error fetching stats:', error);
+      logger.error('Error fetching stats:', error);
     } finally {
       setLoading(false);
     }

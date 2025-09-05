@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Camera, Upload, X, Check, AlertCircle, Image as ImageIcon } from 'lucide-react';
+import logger from '../lib/logger';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
@@ -104,7 +105,7 @@ export const TaskPhotoChecklist: React.FC<TaskPhotoChecklistProps> = ({
         setChecklist(newChecklist);
       }
     } catch (error) {
-      console.error('Ошибка загрузки данных задачи:', error);
+      logger.error('Ошибка загрузки данных задачи:', error);
       toast({
         title: "Ошибка загрузки",
         description: "Не удалось загрузить фото и чек-лист",
@@ -195,7 +196,7 @@ export const TaskPhotoChecklist: React.FC<TaskPhotoChecklistProps> = ({
       });
 
     } catch (error) {
-      console.error('Ошибка загрузки фото:', error);
+      logger.error('Ошибка загрузки фото:', error);
       toast({
         title: "Ошибка загрузки",
         description: "Не удалось загрузить фото",
@@ -236,7 +237,7 @@ export const TaskPhotoChecklist: React.FC<TaskPhotoChecklistProps> = ({
             })
             .eq('id', checklistId);
         } catch (error) {
-          console.error('Ошибка обновления чек-листа:', error);
+          logger.error('Ошибка обновления чек-листа:', error);
         }
       }
     }
@@ -271,7 +272,7 @@ export const TaskPhotoChecklist: React.FC<TaskPhotoChecklistProps> = ({
       onClose();
 
     } catch (error) {
-      console.error('Ошибка сохранения:', error);
+      logger.error('Ошибка сохранения:', error);
       toast({
         title: "Ошибка",
         description: "Не удалось сохранить фото",

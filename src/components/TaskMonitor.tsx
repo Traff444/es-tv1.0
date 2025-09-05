@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { supabase, hasValidCredentials } from '../lib/supabase';
+import logger from '../lib/logger';
 import { Task, User } from '../types';
 import { 
   Clock, 
@@ -91,7 +92,7 @@ export const TaskMonitor: React.FC<TaskMonitorProps> = ({
 
       setTasks(tasksWithTime);
     } catch (error) {
-      console.error('Error fetching tasks:', error);
+      logger.error('Error fetching tasks:', error);
     } finally {
       setLoading(false);
     }

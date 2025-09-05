@@ -4,6 +4,7 @@ import { useAuth } from '../hooks/useAuth';
 import { TaskMonitor } from './TaskMonitor';
 import { RealTimeStats } from './RealTimeStats';
 import { supabase } from '../lib/supabase';
+import logger from '../lib/logger';
 import { 
   Zap,
   Users, 
@@ -52,7 +53,7 @@ export const Dashboard: React.FC = () => {
       setActiveWorkers(activeWorkerProfiles);
 
     } catch (error) {
-      console.error('Error fetching dashboard data:', error);
+      logger.error('Error fetching dashboard data:', error);
     } finally {
       setLoading(false);
     }

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Check, X, AlertCircle, Clock, User, MapPin, Calendar } from 'lucide-react';
+import logger from '../lib/logger';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
@@ -64,7 +65,7 @@ export const TaskApproval: React.FC<TaskApprovalProps> = ({
 
       setTasks(tasksData || []);
     } catch (error) {
-      console.error('Ошибка загрузки задач:', error);
+      logger.error('Ошибка загрузки задач:', error);
       toast({
         title: "Ошибка загрузки",
         description: "Не удалось загрузить задачи на приёмке",
@@ -100,7 +101,7 @@ export const TaskApproval: React.FC<TaskApprovalProps> = ({
       onRefresh();
 
     } catch (error) {
-      console.error('Ошибка приёмки задачи:', error);
+      logger.error('Ошибка приёмки задачи:', error);
       toast({
         title: "Ошибка приёмки",
         description: "Не удалось принять задачу",
@@ -145,7 +146,7 @@ export const TaskApproval: React.FC<TaskApprovalProps> = ({
       onRefresh();
 
     } catch (error) {
-      console.error('Ошибка возврата задачи:', error);
+      logger.error('Ошибка возврата задачи:', error);
       toast({
         title: "Ошибка возврата",
         description: "Не удалось вернуть задачу",

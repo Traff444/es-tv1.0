@@ -4,6 +4,7 @@ import { Task, User } from '../types';
 import { Badge } from './ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
+import logger from '../lib/logger';
 
 type KanbanStatus = 'pending' | 'in_progress' | 'paused' | 'awaiting_photos' | 'awaiting_approval' | 'returned' | 'completed';
 
@@ -53,7 +54,7 @@ export const KanbanBoard: React.FC = () => {
       if (error) throw error;
       setTasks((data as any) || []);
     } catch (e) {
-      console.error('[Kanban] loadTasks error', e);
+      logger.error('[Kanban] loadTasks error', e);
     } finally {
       setLoading(false);
     }
@@ -106,7 +107,7 @@ export const KanbanBoard: React.FC = () => {
       setDragTaskId(null);
       await loadTasks();
     } catch (e) {
-      console.error('[Kanban] update status error', e);
+      logger.error('[Kanban] update status error', e);
     }
   };
 

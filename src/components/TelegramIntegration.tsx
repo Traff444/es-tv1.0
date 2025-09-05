@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
 import { useToast } from '../hooks/useToast';
+import logger from '../lib/logger';
 import { 
   MessageCircle, 
   Check, 
@@ -52,13 +53,13 @@ export const TelegramIntegration: React.FC = () => {
         .single();
 
       if (error && error.code !== 'PGRST116') {
-        console.error('Ошибка загрузки данных Telegram:', error);
+        logger.error('Ошибка загрузки данных Telegram:', error);
         return;
       }
 
       setTelegramData(data);
     } catch (error) {
-      console.error('Ошибка при загрузке данных Telegram:', error);
+      logger.error('Ошибка при загрузке данных Telegram:', error);
     } finally {
       setLoading(false);
     }
@@ -138,7 +139,7 @@ export const TelegramIntegration: React.FC = () => {
       }
 
       if (error) {
-        console.error('Ошибка связывания аккаунта:', error);
+        logger.error('Ошибка связывания аккаунта:', error);
         toast({
           variant: "destructive",
           title: "Ошибка",
@@ -156,7 +157,7 @@ export const TelegramIntegration: React.FC = () => {
       await fetchTelegramData();
 
     } catch (error) {
-      console.error('Ошибка при связывании аккаунта:', error);
+      logger.error('Ошибка при связывании аккаунта:', error);
       toast({
         variant: "destructive",
         title: "Ошибка",
@@ -181,7 +182,7 @@ export const TelegramIntegration: React.FC = () => {
         .eq('id', telegramData.id);
 
       if (error) {
-        console.error('Ошибка обновления настроек:', error);
+        logger.error('Ошибка обновления настроек:', error);
         toast({
           variant: "destructive",
           title: "Ошибка",
@@ -198,7 +199,7 @@ export const TelegramIntegration: React.FC = () => {
       await fetchTelegramData();
 
     } catch (error) {
-      console.error('Ошибка при обновлении настроек:', error);
+      logger.error('Ошибка при обновлении настроек:', error);
       toast({
         variant: "destructive",
         title: "Ошибка",
@@ -223,7 +224,7 @@ export const TelegramIntegration: React.FC = () => {
         .eq('id', telegramData.id);
 
       if (error) {
-        console.error('Ошибка отвязки аккаунта:', error);
+        logger.error('Ошибка отвязки аккаунта:', error);
         toast({
           variant: "destructive",
           title: "Ошибка",
@@ -240,7 +241,7 @@ export const TelegramIntegration: React.FC = () => {
       setTelegramData(null);
 
     } catch (error) {
-      console.error('Ошибка при отвязке аккаунта:', error);
+      logger.error('Ошибка при отвязке аккаунта:', error);
       toast({
         variant: "destructive",
         title: "Ошибка",

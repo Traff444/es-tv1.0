@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { supabase, hasValidCredentials } from '../lib/supabase';
+import logger from '../lib/logger';
 import { User, WorkSession, Task } from '../types';
 import { MapDisplay } from './MapDisplay';
 import { 
@@ -132,7 +133,7 @@ export const TeamManager: React.FC<TeamManagerProps> = () => {
 
       setTeamMembers(membersWithStats);
     } catch (error) {
-      console.error('Error fetching team data:', error);
+      logger.error('Error fetching team data:', error);
     } finally {
       setLoading(false);
     }

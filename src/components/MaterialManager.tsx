@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { supabase, hasValidCredentials } from '../lib/supabase';
+import logger from '../lib/logger';
 import {
   Material,
   MaterialCategory,
@@ -950,7 +951,7 @@ const CreateEditModal: React.FC<CreateEditModalProps> = ({
 
       onSuccess();
     } catch (error) {
-      console.error('Error saving item:', error);
+      logger.error('Error saving item:', error);
       alert('Ошибка при сохранении');
     } finally {
       setLoading(false);

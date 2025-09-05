@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { supabase, hasValidCredentials } from '../lib/supabase';
+import logger from '../lib/logger';
 import { User, TariffType, UserTariff, Holiday } from '../types';
 import { 
   DollarSign, 
@@ -67,7 +68,7 @@ export const TariffManager: React.FC<TariffManagerProps> = ({ onNavigate }) => {
         fetchHolidays()
       ]);
     } catch (error) {
-      console.error('Error fetching data:', error);
+      logger.error('Error fetching data:', error);
     } finally {
       setLoading(false);
     }
@@ -168,7 +169,7 @@ export const TariffManager: React.FC<TariffManagerProps> = ({ onNavigate }) => {
       await fetchUserTariffs();
       setShowTariffForm(false);
     } catch (error) {
-      console.error('Error creating tariff:', error);
+      logger.error('Error creating tariff:', error);
       alert('Ошибка при создании тарифа');
     }
   };
@@ -186,7 +187,7 @@ export const TariffManager: React.FC<TariffManagerProps> = ({ onNavigate }) => {
       await fetchHolidays();
       setShowHolidayForm(false);
     } catch (error) {
-      console.error('Error creating holiday:', error);
+      logger.error('Error creating holiday:', error);
       alert('Ошибка при создании праздника');
     }
   };
@@ -206,7 +207,7 @@ export const TariffManager: React.FC<TariffManagerProps> = ({ onNavigate }) => {
 
       await fetchUserTariffs();
     } catch (error) {
-      console.error('Error deleting tariff:', error);
+      logger.error('Error deleting tariff:', error);
       alert('Ошибка при удалении тарифа');
     }
   };
@@ -226,7 +227,7 @@ export const TariffManager: React.FC<TariffManagerProps> = ({ onNavigate }) => {
 
       await fetchHolidays();
     } catch (error) {
-      console.error('Error deleting holiday:', error);
+      logger.error('Error deleting holiday:', error);
       alert('Ошибка при удалении праздника');
     }
   };
