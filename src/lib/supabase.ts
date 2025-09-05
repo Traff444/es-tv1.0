@@ -114,7 +114,7 @@ export const signOut = async () => {
 };
 
 // Telegram authentication
-export const signInWithTelegram = async (telegramUser: any) => {
+export const signInWithTelegram = async (telegramUser: any, initData: string) => {
   if (!supabase) {
     throw new Error('Supabase client not initialized');
   }
@@ -122,7 +122,18 @@ export const signInWithTelegram = async (telegramUser: any) => {
   try {
     console.log('🔍 Starting Telegram authentication for user:', telegramUser.id);
     console.log('👤 Telegram user data:', JSON.stringify(telegramUser, null, 2));
-    
+
+    // 0. Verify initData hash on the server
+    console.log('🔍 Step 0: Verifying initData hash...');
+    const { data: verifyData, error: verifyError } = await supabase.functions.invoke(
+      'verify-telegram-init-data',
+      { body: { initData } }
+    );
+    if (verifyError || !verifyData?.ok) {
+      console.warn('⚠️ initData verification failed', verifyError, verifyData);
+      return { data: null, error: new Error('invalid_init_data') } as any;
+    }
+
     // 1. Check if user exists in telegram_users table
     console.log('🔍 Step 1: Looking for existing telegram_users record...');
     const { data: telegramUserRecord, error: telegramError } = await supabase

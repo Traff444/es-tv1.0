@@ -99,7 +99,8 @@ export const Auth: React.FC = () => {
           
           if (telegramUser) {
             console.log('[Auth] Starting Telegram authentication for ID:', telegramUser.id);
-            const result = await signInWithTelegram(telegramUser);
+            const initData = window.Telegram?.WebApp?.initData || '';
+            const result = await signInWithTelegram(telegramUser, initData);
             
             if (debug) console.log('[Auth] signInWithTelegram result:', {
               hasUser: !!result.data?.user,
