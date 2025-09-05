@@ -39,12 +39,15 @@ USING (
 );
 
 -- Fix telegram_users RLS policies
+DROP POLICY IF EXISTS "anon_can_read_telegram_users_for_integration" ON telegram_users;
+DROP POLICY IF EXISTS "anon_can_insert_telegram_users_for_integration" ON telegram_users;
+DROP POLICY IF EXISTS "anon_can_update_telegram_users_for_integration" ON telegram_users;
 DROP POLICY IF EXISTS "telegram_users_select" ON telegram_users;
 DROP POLICY IF EXISTS "telegram_users_select_for_auth" ON telegram_users;
 
--- Allow anon and authenticated to read telegram_users for auth flows
-CREATE POLICY "telegram_users_select_for_auth" ON telegram_users FOR SELECT 
-TO anon, authenticated 
+-- Allow authenticated users to read telegram_users
+CREATE POLICY "telegram_users_select_for_auth" ON telegram_users FOR SELECT
+TO authenticated
 USING (true);
 
 -- Allow authenticated users to update their own telegram settings

@@ -424,8 +424,6 @@ CREATE POLICY "Allow write access" ON public.task_notifications FOR ALL TO authe
 CREATE POLICY "Allow write access" ON public.role_change_logs FOR ALL TO authenticated USING (true);
 CREATE POLICY "Allow write access" ON public.edge_function_calls FOR ALL TO authenticated USING (true);
 
--- Allow anonymous access for Telegram authentication
-CREATE POLICY "Allow anonymous read for telegram auth" ON public.telegram_users FOR SELECT TO anon USING (true);
 CREATE POLICY "Allow anonymous read for users" ON public.users FOR SELECT TO anon USING (true);
 
 -- ============================================

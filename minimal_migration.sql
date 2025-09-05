@@ -40,7 +40,6 @@ ALTER TABLE telegram_users ENABLE ROW LEVEL SECURITY;
 
 -- Allow anonymous access for authentication
 CREATE POLICY "Allow anonymous read for users" ON users FOR SELECT TO anon USING (true);
-CREATE POLICY "Allow anonymous read for telegram_users" ON telegram_users FOR SELECT TO anon USING (true);
 CREATE POLICY "Allow authenticated access for users" ON users FOR ALL TO authenticated USING (true);
 CREATE POLICY "Allow authenticated access for telegram_users" ON telegram_users FOR ALL TO authenticated USING (true);
 

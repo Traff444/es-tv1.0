@@ -114,59 +114,28 @@ export const signOut = async () => {
 };
 
 // Telegram authentication
-export const signInWithTelegram = async (telegramUser: any) => {
+export const signInWithTelegram = async (initData: string, telegramId: number) => {
   if (!supabase) {
     throw new Error('Supabase client not initialized');
   }
 
   try {
-    console.log('🔍 Starting Telegram authentication for user:', telegramUser.id);
-    console.log('👤 Telegram user data:', JSON.stringify(telegramUser, null, 2));
-    
-    // 1. Check if user exists in telegram_users table
-    console.log('🔍 Step 1: Looking for existing telegram_users record...');
-    const { data: telegramUserRecord, error: telegramError } = await supabase
-      .from('telegram_users')
-      .select('*, users(*)')
-      .eq('telegram_id', telegramUser.id)
-      .single();
+    console.log('🔍 Starting Telegram authentication for ID:', telegramId);
 
-    console.log('📋 Telegram users query result:');
-    console.log('  - Data:', JSON.stringify(telegramUserRecord, null, 2));
-    console.log('  - Error:', telegramError);
+    const { data, error } = await supabase.functions.invoke('create-telegram-session', {
+      body: { initData, telegram_id: telegramId }
+    });
 
-    if (telegramUserRecord && telegramUserRecord.users) {
-      // For Telegram users, we don't need to authenticate with Supabase password
-      // We just need to return the user data since we've verified the Telegram ID
-      console.log('✅ Found existing user, returning user data for ID-only auth');
-      const profile = telegramUserRecord.users as any;
-      
-      // Create a mock user object that looks like a Supabase user
-      const mockUser = {
-        id: profile.id,
-        email: profile.email,
-        user_metadata: {
-          full_name: profile.full_name,
-        },
-        app_metadata: {
-          role: profile.role,
-        },
-        aud: 'authenticated',
-        created_at: profile.created_at,
-        updated_at: profile.updated_at,
-      };
-      
-      return { 
-        data: { 
-          user: mockUser, 
-          session: null 
-        }, 
-        error: null 
-      };
-    } else {
-      console.warn('⚠️ Telegram user not linked in telegram_users');
-      return { data: null, error: new Error('telegram_user_not_linked') } as any;
+    if (error) {
+      console.error('❌ create-telegram-session error:', error);
+      return { data: null, error } as any;
     }
+
+    if (data?.session) {
+      await supabase.auth.setSession(data.session);
+    }
+
+    return { data, error: null } as any;
   } catch (error) {
     console.error('❌ Telegram authentication error:', error);
     return { data: null, error };

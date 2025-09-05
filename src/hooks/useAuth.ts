@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { User as AuthUser } from '@supabase/supabase-js';
-import { supabase, hasValidCredentials } from '../lib/supabase';
+import { supabase, hasValidCredentials, signInWithTelegram } from '../lib/supabase';
 import { User } from '../types';
 
 export const useAuth = () => {
@@ -107,35 +107,13 @@ export const useAuth = () => {
         const inTelegram = forceWeb ? false : detectedTelegram;
         
         if (inTelegram && !session?.user) {
-          // In Telegram environment, try to get Telegram user
           const telegramUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
-          if (telegramUser) {
-            console.log('[useAuth] Telegram environment detected, attempting ID-only auth');
-            // For Telegram users, we don't need Supabase session, just fetch profile
-            const { data: telegramUserRecord, error: telegramError } = await supabase
-              .from('telegram_users')
-              .select('users(*)')
-              .eq('telegram_id', telegramUser.id)
-              .single();
-              
-            if (telegramUserRecord?.users && !telegramError) {
-              console.log('[useAuth] Telegram user found, setting user and profile');
-              const profileData = telegramUserRecord.users as any;
-              setUser({
-                id: profileData.id,
-                email: profileData.email,
-                user_metadata: {
-                  full_name: profileData.full_name,
-                },
-                app_metadata: {
-                  role: profileData.role,
-                },
-                aud: 'authenticated',
-                created_at: profileData.created_at,
-                updated_at: profileData.updated_at,
-              } as AuthUser);
-              setProfile(profileData);
-              setLoading(false);
+          const initData = window.Telegram?.WebApp?.initData || '';
+          if (telegramUser && initData) {
+            console.log('[useAuth] Telegram environment detected, creating session');
+            const { data: tgSession, error: tgError } = await signInWithTelegram(initData, telegramUser.id);
+            if (!tgError && tgSession?.session) {
+              await handleAuthChange(tgSession.session);
               return;
             }
           }
