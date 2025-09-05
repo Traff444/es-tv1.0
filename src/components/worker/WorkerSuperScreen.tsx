@@ -43,7 +43,7 @@ export function WorkerSuperScreen() {
   // Функция для логирования
   const log = (message: string, data?: any) => {
     const timestamp = new Date().toISOString();
-    logger.info(`[WorkerScreen ${timestamp}] ${message}`, data || '');
+    logger.info(`[WorkerSuperScreen ${timestamp}] ${message}`, data || '');
   };
 
   if (!hasValidCredentials || !supabase) {
