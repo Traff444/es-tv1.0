@@ -64,10 +64,11 @@ export class TelegramWebApp {
     const hasNgrok = hasWindow && window.location.hostname.includes('ngrok');
     const hasUser = hasWindow && !!window.Telegram?.WebApp?.initDataUnsafe?.user;
     const params = hasWindow ? new URLSearchParams(window.location.search) : null;
-    const forceTelegram = params?.get('force_telegram') === '1';
-    const hasTestUserParam = Boolean(params?.get('telegram_id'));
+    const isDev = import.meta.env.DEV;
+    const forceTelegram = isDev && params?.get('force_telegram') === '1';
+    const hasTestUserParam = isDev && Boolean(params?.get('telegram_id'));
     const hash = hasWindow ? (window.location.hash || '') : '';
-    const hasTgWebAppData = hasWindow && hash.includes('tgWebAppData=');
+    const hasTgWebAppData = isDev && hasWindow && hash.includes('tgWebAppData=');
     
     console.log('🔍 Environment check:', {
       hasWindow,
@@ -81,16 +82,17 @@ export class TelegramWebApp {
     });
     
     // Считаем окружением Telegram, если доступен WebApp и есть пользователь
-    // или указаны флаги/test-параметры, или присутствует tgWebAppData в hash
+    // Тестовые флаги разрешены только в режиме разработки
     return hasTelegram && (hasUser || forceTelegram || hasTestUserParam || hasTgWebAppData);
   }
 
   public getTelegramUser() {
     console.log('🔍 Getting Telegram user...');
     
-    // Разрешаем тестовый сценарий с параметром telegram_id даже в браузере
+    const isDev = import.meta.env.DEV;
+    // Разрешаем тестовый сценарий с параметром telegram_id только в режиме разработки
     const urlParams = new URLSearchParams(window.location.search);
-    const testUserId = urlParams.get('telegram_id');
+    const testUserId = isDev ? urlParams.get('telegram_id') : null;
     if (testUserId) {
       console.log('🧪 Using test Telegram ID from URL:', testUserId);
       return {
@@ -114,22 +116,24 @@ export class TelegramWebApp {
       return user;
     }
 
-    // Фоллбек: парсим tgWebAppData из hash (Telegram Desktop/Web иногда не заполняет initDataUnsafe)
-    try {
-      const hash = window.location.hash || '';
-      const m = hash.match(/tgWebAppData=([^&]+)/);
-      if (m && m[1]) {
-        const decoded = decodeURIComponent(m[1]);
-        const kv = new URLSearchParams(decoded);
-        const userStr = kv.get('user');
-        if (userStr) {
-          const parsed = JSON.parse(decodeURIComponent(userStr));
-          console.log('👤 Telegram user (parsed from tgWebAppData hash):', parsed);
-          return parsed;
+    // Фоллбек с tgWebAppData разрешен только в режиме разработки
+    if (isDev) {
+      try {
+        const hash = window.location.hash || '';
+        const m = hash.match(/tgWebAppData=([^&]+)/);
+        if (m && m[1]) {
+          const decoded = decodeURIComponent(m[1]);
+          const kv = new URLSearchParams(decoded);
+          const userStr = kv.get('user');
+          if (userStr) {
+            const parsed = JSON.parse(decodeURIComponent(userStr));
+            console.log('👤 Telegram user (parsed from tgWebAppData hash):', parsed);
+            return parsed;
+          }
         }
+      } catch (e) {
+        console.warn('⚠️ Failed to parse tgWebAppData from hash:', e);
       }
-    } catch (e) {
-      console.warn('⚠️ Failed to parse tgWebAppData from hash:', e);
     }
 
     console.log('⚠️ Telegram user not found');
