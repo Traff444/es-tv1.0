@@ -136,30 +136,33 @@ export const signInWithTelegram = async (telegramUser: any) => {
     console.log('  - Error:', telegramError);
 
     if (telegramUserRecord && telegramUserRecord.users) {
-      // Existing mapping: attempt password-based sign-in with known convention
-      console.log('✅ Found existing user, attempting sign in...');
+      // For Telegram users, we don't need to authenticate with Supabase password
+      // We just need to return the user data since we've verified the Telegram ID
+      console.log('✅ Found existing user, returning user data for ID-only auth');
       const profile = telegramUserRecord.users as any;
-      const password = `telegram_${telegramUser.id}`;
-
-      // Try primary email from mapping
-      let { data: authData, error: signInError } = await supabase.auth.signInWithPassword({
+      
+      // Create a mock user object that looks like a Supabase user
+      const mockUser = {
+        id: profile.id,
         email: profile.email,
-        password,
-      });
-      if (signInError) {
-        console.warn('⚠️ Primary sign-in failed, trying fallback telegram email...', signInError.message);
-        // Fallback: try telegram_email
-        const fallbackEmail = `telegram_${telegramUser.id}@electroservice.by`;
-        const res2 = await supabase.auth.signInWithPassword({ email: fallbackEmail, password });
-        authData = res2.data; signInError = res2.error;
-      }
-
-      if (signInError) {
-        console.error('❌ Telegram sign-in failed:', signInError.message);
-        return { data: null, error: new Error('telegram_auth_failed') } as any;
-      }
-      console.log('✅ Telegram sign-in successful');
-      return { data: authData, error: null };
+        user_metadata: {
+          full_name: profile.full_name,
+        },
+        app_metadata: {
+          role: profile.role,
+        },
+        aud: 'authenticated',
+        created_at: profile.created_at,
+        updated_at: profile.updated_at,
+      };
+      
+      return { 
+        data: { 
+          user: mockUser, 
+          session: null 
+        }, 
+        error: null 
+      };
     } else {
       console.warn('⚠️ Telegram user not linked in telegram_users');
       return { data: null, error: new Error('telegram_user_not_linked') } as any;

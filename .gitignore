@@ -47,3 +47,5 @@ coverage/
 
 # Test files
 test_*.sql
+.vercel
+.env*.local

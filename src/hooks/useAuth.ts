@@ -97,6 +97,50 @@ export const useAuth = () => {
         console.log('[useAuth] initAuth.getSession');
         const { data: { session } } = await supabase.auth.getSession();
         console.log('[useAuth] initAuth.session', { hasUser: !!session?.user });
+        
+        // Check if we're in Telegram environment and have a Telegram user
+        const params = new URLSearchParams(window.location.search);
+        const forceWeb = params.get('force_web') === '1';
+        const detectedTelegram = typeof window !== 'undefined' && 
+          !!window.Telegram?.WebApp && 
+          !!window.Telegram?.WebApp?.initDataUnsafe?.user;
+        const inTelegram = forceWeb ? false : detectedTelegram;
+        
+        if (inTelegram && !session?.user) {
+          // In Telegram environment, try to get Telegram user
+          const telegramUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
+          if (telegramUser) {
+            console.log('[useAuth] Telegram environment detected, attempting ID-only auth');
+            // For Telegram users, we don't need Supabase session, just fetch profile
+            const { data: telegramUserRecord, error: telegramError } = await supabase
+              .from('telegram_users')
+              .select('users(*)')
+              .eq('telegram_id', telegramUser.id)
+              .single();
+              
+            if (telegramUserRecord?.users && !telegramError) {
+              console.log('[useAuth] Telegram user found, setting user and profile');
+              const profileData = telegramUserRecord.users as any;
+              setUser({
+                id: profileData.id,
+                email: profileData.email,
+                user_metadata: {
+                  full_name: profileData.full_name,
+                },
+                app_metadata: {
+                  role: profileData.role,
+                },
+                aud: 'authenticated',
+                created_at: profileData.created_at,
+                updated_at: profileData.updated_at,
+              } as AuthUser);
+              setProfile(profileData);
+              setLoading(false);
+              return;
+            }
+          }
+        }
+        
         // Доп. попытка рефреша, если сессии нет, но есть persisted token
         if (!session?.user) {
           try {

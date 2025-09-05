@@ -84,32 +84,59 @@ export const Auth: React.FC = () => {
         setIsTelegramEnv(inTelegram);
         
         if (inTelegram) {
-          // Force Telegram auth on every open. Do not show email form in Telegram.
-          try {
-            await supabase.auth.signOut();
-          } catch {}
+          // В Telegram ВСЕГДА используем ID-only auth, НИКОГДА не показываем email форму
+          console.log('[Auth] Telegram environment detected - ID-only auth');
+          
+          // Don't clear session if user is already authenticated
+          if (session?.user) {
+            console.log('[Auth] User already authenticated, skipping Telegram auth');
+            setTelegramLoading(false);
+            return;
+          }
+          
           const telegramUser = getTelegramUser();
           if (debug) console.log('[Auth] telegramUser present=', !!telegramUser);
+          
           if (telegramUser) {
+            console.log('[Auth] Starting Telegram authentication for ID:', telegramUser.id);
             const result = await signInWithTelegram(telegramUser);
+            
             if (debug) console.log('[Auth] signInWithTelegram result:', {
               hasUser: !!result.data?.user,
+              hasSession: !!result.data?.session,
               error: result.error?.message
             });
+            
             if (result.error) {
-              setError(`Ошибка входа через Telegram: ${result.error.message}`);
+              // В Telegram НЕ показываем форму логина при ошибке
+              if (result.error.message === 'telegram_user_not_linked') {
+                setError('Ваш Telegram аккаунт не связан с системой. Обратитесь к менеджеру для получения доступа.');
+              } else {
+                setError(`Ошибка входа: ${result.error.message}. Обратитесь к менеджеру.`);
+              }
+              // НЕ устанавливаем showEmailAuth = true в Telegram!
+            } else if (result.data?.user) {
+              // Successfully got user data, let useAuth handle the rest
+              console.log('[Auth] Successfully got user data, letting useAuth handle session');
             }
           } else {
-            setError('Не удалось получить данные Telegram пользователя');
+            setError('Не удалось получить данные Telegram пользователя. Попробуйте перезапустить Mini App.');
           }
+          // НИКОГДА не показываем email форму в Telegram
           setShowEmailAuth(false);
         } else {
-          // Жестко раскрываем email-форму, чтобы избежать зависаний
+          // Веб окружение - показываем email форму
+          console.log('[Auth] Web environment detected - email/password auth');
           setShowEmailAuth(true);
         }
       } catch (error) {
-        setError('Ошибка инициализации');
-        setShowEmailAuth(true);
+        console.error('[Auth] Initialization error:', error);
+        if (!isTelegramEnv) {
+          // Только для веб показываем email форму при ошибке
+          setShowEmailAuth(true);
+        } else {
+          setError('Ошибка инициализации. Попробуйте перезапустить Mini App.');
+        }
       } finally {
         setTelegramLoading(false);
       }
@@ -117,13 +144,19 @@ export const Auth: React.FC = () => {
     
     // Small delay to ensure Telegram WebApp is fully loaded
     const timer = setTimeout(checkEnvironment, 500);
-    // Hard fallback: if через 8 сек всё ещё loading, показываем email-форму
+    
+    // Hard fallback ТОЛЬКО для веб-версии
     const failover = setTimeout(() => {
       if (telegramLoading) {
-        console.log('[Auth] failover -> showEmailAuth');
-        // Do not show email form in Telegram environment
+        console.log('[Auth] failover timeout reached');
         if (!isTelegramEnv) {
+          // Только в веб показываем email форму при таймауте
+          console.log('[Auth] failover -> showEmailAuth (web only)');
           setShowEmailAuth(true);
+        } else {
+          // В Telegram показываем ошибку, но НЕ email форму
+          console.log('[Auth] failover -> error in Telegram');
+          setError('Превышено время ожидания. Попробуйте перезапустить Mini App.');
         }
         setTelegramLoading(false);
       }
@@ -197,12 +230,15 @@ export const Auth: React.FC = () => {
           {error && (
             <div className="mt-6 bg-red-50 border border-red-200 rounded-lg p-3">
               <p className="text-red-600 text-sm">{error}</p>
-              <button
-                onClick={() => setShowEmailAuth(true)}
-                className="mt-2 text-blue-600 hover:text-blue-700 text-sm font-medium"
-              >
-                Войти по email и паролю
-              </button>
+              {/* Кнопку email входа показываем только в веб-версии */}
+              {!isTelegramEnv && (
+                <button
+                  onClick={() => setShowEmailAuth(true)}
+                  className="mt-2 text-blue-600 hover:text-blue-700 text-sm font-medium"
+                >
+                  Войти по email и паролю
+                </button>
+              )}
             </div>
           )}
         </div>
