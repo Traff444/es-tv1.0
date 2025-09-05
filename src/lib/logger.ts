@@ -2,7 +2,7 @@ const levelOrder = { debug: 0, info: 1, warn: 2, error: 3 } as const;
 
 type Level = keyof typeof levelOrder;
 
-const currentLevel: Level = process.env.NODE_ENV === 'production' ? 'error' : 'debug';
+const currentLevel: Level = import.meta.env.PROD ? 'error' : 'debug';
 
 function shouldLog(level: Level) {
   return levelOrder[level] >= levelOrder[currentLevel];
