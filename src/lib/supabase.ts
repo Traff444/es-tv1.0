@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import logger from './logger';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -35,7 +36,7 @@ export const signUp = async (email: string, password: string, fullName: string) 
   
   // Если регистрация успешна, создаем профиль в таблице users
   if (data.user && !error) {
-    console.log('✅ Пользователь создан в auth.users, создаем профиль...');
+    logger.info('✅ Пользователь создан в auth.users, создаем профиль...');
     
     const { data: profileData, error: profileError } = await supabase
       .from('users')
@@ -51,10 +52,10 @@ export const signUp = async (email: string, password: string, fullName: string) 
       .single();
       
     if (profileError) {
-      console.log('❌ Ошибка создания профиля:', profileError.message);
+      logger.warn('❌ Ошибка создания профиля:', profileError.message);
       // Не возвращаем ошибку, так как пользователь уже создан в auth
     } else {
-      console.log('✅ Профиль создан успешно в таблице users');
+      logger.info('✅ Профиль создан успешно в таблице users');
     }
   }
   
@@ -120,36 +121,36 @@ export const signInWithTelegram = async (telegramUser: any, initData: string) =>
   }
 
   try {
-    console.log('🔍 Starting Telegram authentication for user:', telegramUser.id);
-    console.log('👤 Telegram user data:', JSON.stringify(telegramUser, null, 2));
+    logger.info('🔍 Starting Telegram authentication for user:', telegramUser.id);
+    logger.debug('👤 Telegram user data:', JSON.stringify(telegramUser, null, 2));
 
     // 0. Verify initData hash on the server
-    console.log('🔍 Step 0: Verifying initData hash...');
+    logger.debug('🔍 Step 0: Verifying initData hash...');
     const { data: verifyData, error: verifyError } = await supabase.functions.invoke(
       'verify-telegram-init-data',
       { body: { initData } }
     );
     if (verifyError || !verifyData?.ok) {
-      console.warn('⚠️ initData verification failed', verifyError, verifyData);
+      logger.warn('⚠️ initData verification failed', verifyError, verifyData);
       return { data: null, error: new Error('invalid_init_data') } as any;
     }
 
     // 1. Check if user exists in telegram_users table
-    console.log('🔍 Step 1: Looking for existing telegram_users record...');
+    logger.debug('🔍 Step 1: Looking for existing telegram_users record...');
     const { data: telegramUserRecord, error: telegramError } = await supabase
       .from('telegram_users')
       .select('*, users(*)')
       .eq('telegram_id', telegramUser.id)
       .single();
 
-    console.log('📋 Telegram users query result:');
-    console.log('  - Data:', JSON.stringify(telegramUserRecord, null, 2));
-    console.log('  - Error:', telegramError);
+    logger.debug('📋 Telegram users query result:');
+    logger.debug('  - Data:', JSON.stringify(telegramUserRecord, null, 2));
+    logger.debug('  - Error:', telegramError);
 
     if (telegramUserRecord && telegramUserRecord.users) {
       // For Telegram users, we don't need to authenticate with Supabase password
       // We just need to return the user data since we've verified the Telegram ID
-      console.log('✅ Found existing user, returning user data for ID-only auth');
+      logger.info('✅ Found existing user, returning user data for ID-only auth');
       const profile = telegramUserRecord.users as any;
       
       // Create a mock user object that looks like a Supabase user
@@ -175,11 +176,11 @@ export const signInWithTelegram = async (telegramUser: any, initData: string) =>
         error: null 
       };
     } else {
-      console.warn('⚠️ Telegram user not linked in telegram_users');
+      logger.warn('⚠️ Telegram user not linked in telegram_users');
       return { data: null, error: new Error('telegram_user_not_linked') } as any;
     }
   } catch (error) {
-    console.error('❌ Telegram authentication error:', error);
+    logger.error('❌ Telegram authentication error:', error);
     return { data: null, error };
   }
 };
@@ -241,7 +242,7 @@ export const getAllUsers = async () => {
 
 export const updateUserRole = async (userId: string, newRole: string) => {
   try {
-    console.log('Обновление роли пользователя:', userId, 'на роль:', newRole);
+    logger.info('Обновление роли пользователя:', userId, 'на роль:', newRole);
     
     // Get current user to verify admin rights
     const { data: { user: currentUser } } = await supabase.auth.getUser();
@@ -259,7 +260,7 @@ export const updateUserRole = async (userId: string, newRole: string) => {
       .eq('id', userId);
 
     if (error) {
-      console.error('Ошибка при обновлении роли:', error);
+      logger.error('Ошибка при обновлении роли:', error);
       
       // Специальная обработка ошибок RLS
       if (error.code === '42501' || error.message.includes('permission denied')) {
@@ -269,11 +270,11 @@ export const updateUserRole = async (userId: string, newRole: string) => {
       throw new Error(`Ошибка обновления роли: ${error.message}`);
     }
 
-    console.log('Роль успешно обновлена');
+    logger.info('Роль успешно обновлена');
     
     return { data: null, error: null };
   } catch (error) {
-    console.error('Общая ошибка обновления роли:', error);
+    logger.error('Общая ошибка обновления роли:', error);
     return { data: null, error };
   }
 };

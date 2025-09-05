@@ -5,6 +5,7 @@ import { WorkSession } from '../types';
 import { Play, Square, Clock, MapPin, DollarSign, Calendar, ArrowLeft } from 'lucide-react';
 import { format, formatDuration, intervalToDuration } from 'date-fns';
 import { ru } from 'date-fns/locale';
+import logger from '../lib/logger';
 
 interface TimeTrackerProps {
   onNavigate?: (view: string) => void;
@@ -82,7 +83,7 @@ export const TimeTracker: React.FC<TimeTrackerProps> = ({ onNavigate }) => {
         const position = await getCurrentLocation();
         location = formatLocation(position);
       } catch (locationError) {
-        console.warn('Geolocation failed:', locationError);
+        logger.warn('Geolocation failed:', locationError);
         const proceed = confirm(
           'Не удалось получить GPS координаты. Продолжить без записи местоположения?'
         );
@@ -104,7 +105,7 @@ export const TimeTracker: React.FC<TimeTrackerProps> = ({ onNavigate }) => {
       if (error) throw error;
       setCurrentSession(data);
     } catch (error) {
-      console.error('Error starting work:', error);
+      logger.error('Error starting work:', error);
       alert('Ошибка при начале работы.');
     } finally {
       setLoading(false);
@@ -122,7 +123,7 @@ export const TimeTracker: React.FC<TimeTrackerProps> = ({ onNavigate }) => {
         const position = await getCurrentLocation();
         location = formatLocation(position);
       } catch (locationError) {
-        console.warn('Geolocation failed:', locationError);
+        logger.warn('Geolocation failed:', locationError);
         const proceed = confirm(
           'Не удалось получить GPS координаты. Продолжить без записи местоположения?'
         );
@@ -160,7 +161,7 @@ export const TimeTracker: React.FC<TimeTrackerProps> = ({ onNavigate }) => {
       setCurrentSession(null);
       fetchRecentSessions();
     } catch (error) {
-      console.error('Error ending work:', error);
+      logger.error('Error ending work:', error);
       alert('Ошибка при завершении работы.');
     } finally {
       setLoading(false);

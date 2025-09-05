@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { User as AuthUser } from '@supabase/supabase-js';
 import { supabase, hasValidCredentials } from '../lib/supabase';
 import { User } from '../types';
+import logger from '../lib/logger';
 
 export const useAuth = () => {
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -35,14 +36,14 @@ export const useAuth = () => {
     } catch {}
     const fallbackTimer = setTimeout(() => {
       if (mounted && loading) {
-        console.warn('[useAuth] Fallback timeout: forcing loading=false');
+        logger.warn('[useAuth] Fallback timeout: forcing loading=false');
         setLoading(false);
       }
     }, 8000);
 
     const fetchProfile = async (userId: string) => {
       try {
-        console.log('[useAuth] fetchProfile start', { userId });
+        logger.info('[useAuth] fetchProfile start', { userId });
         const { data, error } = await supabase
           .from('users')
           .select('*')
@@ -54,7 +55,7 @@ export const useAuth = () => {
         }
 
         if (mounted) {
-          console.log('[useAuth] fetchProfile done', { hasData: !!data, ms: Date.now() - startTs });
+          logger.info('[useAuth] fetchProfile done', { hasData: !!data, ms: Date.now() - startTs });
           setProfile(data);
           // Auto sign-out if profile missing (inactive or inconsistent state)
           if (!data) {
@@ -64,7 +65,7 @@ export const useAuth = () => {
           }
         }
       } catch (error) {
-        console.error('Error fetching profile:', error);
+        logger.error('Error fetching profile:', error);
         if (mounted) {
           setProfile(null);
           // On profile error, also sign out to reset broken session
@@ -94,13 +95,14 @@ export const useAuth = () => {
 
     const initAuth = async () => {
       try {
-        console.log('[useAuth] initAuth.getSession');
+        logger.info('[useAuth] initAuth.getSession');
         const { data: { session } } = await supabase.auth.getSession();
-        console.log('[useAuth] initAuth.session', { hasUser: !!session?.user });
+        logger.info('[useAuth] initAuth.session', { hasUser: !!session?.user });
         
         // Check if we're in Telegram environment and have a Telegram user
         const params = new URLSearchParams(window.location.search);
-        const forceWeb = params.get('force_web') === '1';
+        const isDev = process.env.NODE_ENV !== 'production';
+        const forceWeb = isDev && params.get('force_web') === '1';
         const detectedTelegram = typeof window !== 'undefined' && 
           !!window.Telegram?.WebApp && 
           !!window.Telegram?.WebApp?.initDataUnsafe?.user;
@@ -110,7 +112,7 @@ export const useAuth = () => {
           // In Telegram environment, try to get Telegram user
           const telegramUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
           if (telegramUser) {
-            console.log('[useAuth] Telegram environment detected, attempting ID-only auth');
+            logger.info('[useAuth] Telegram environment detected, attempting ID-only auth');
             // For Telegram users, we don't need Supabase session, just fetch profile
             const { data: telegramUserRecord, error: telegramError } = await supabase
               .from('telegram_users')
@@ -119,7 +121,7 @@ export const useAuth = () => {
               .single();
               
             if (telegramUserRecord?.users && !telegramError) {
-              console.log('[useAuth] Telegram user found, setting user and profile');
+              logger.info('[useAuth] Telegram user found, setting user and profile');
               const profileData = telegramUserRecord.users as any;
               setUser({
                 id: profileData.id,
@@ -154,7 +156,7 @@ export const useAuth = () => {
           await handleAuthChange(session);
         }
       } catch (error) {
-        console.error('Error initializing auth:', error);
+        logger.error('Error initializing auth:', error);
         if (mounted) {
           setUser(null);
           setProfile(null);

@@ -14,6 +14,7 @@ import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Truck, Pause, Camera, Phone } from 'lucide-react';
 import { format, startOfDay, endOfDay } from 'date-fns';
+import logger from '../../lib/logger';
 
 type ShiftStatus = 'idle' | 'running' | 'pause';
 
@@ -42,7 +43,7 @@ export function WorkerSuperScreen() {
   // Функция для логирования
   const log = (message: string, data?: any) => {
     const timestamp = new Date().toISOString();
-    console.log(`[WorkerScreen ${timestamp}] ${message}`, data || '');
+    logger.info(`[WorkerScreen ${timestamp}] ${message}`, data || '');
   };
 
   if (!hasValidCredentials || !supabase) {
@@ -226,7 +227,7 @@ export function WorkerSuperScreen() {
         fetchHistory()
       ]);
     } catch (error) {
-      console.error('Error initializing data:', error);
+      logger.error('Error initializing data:', error);
       setError('Ошибка загрузки данных');
     } finally {
       setLoading(false);
@@ -515,7 +516,7 @@ export function WorkerSuperScreen() {
         setGeoVerified(true);
         setOutside(false);
       } catch (locationError) {
-        console.warn('Geolocation failed:', locationError);
+        logger.warn('Geolocation failed:', locationError);
         setGeoVerified(false);
         const proceed = confirm(
           'Не удалось получить GPS координаты. Продолжить без записи местоположения?'
@@ -548,7 +549,7 @@ export function WorkerSuperScreen() {
       });
 
     } catch (error) {
-      console.error('Error starting work:', error);
+      logger.error('Error starting work:', error);
       toast({
         title: "Ошибка",
         description: "Не удалось начать смену",
@@ -594,7 +595,7 @@ export function WorkerSuperScreen() {
         log('Геолокация получена', { location });
       } catch (locationError) {
         log('Ошибка получения геолокации при завершении смены', { error: locationError });
-        console.warn('Geolocation failed:', locationError);
+        logger.warn('Geolocation failed:', locationError);
       }
       
       const endTime = new Date();
@@ -666,7 +667,7 @@ export function WorkerSuperScreen() {
         error: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : undefined
       });
-      console.error('Error ending work:', error);
+      logger.error('Error ending work:', error);
       toast({
         title: "Ошибка",
         description: "Не удалось завершить смену",
@@ -771,7 +772,7 @@ export function WorkerSuperScreen() {
         fetchTasks();
       }, 1000);
     } catch (error) {
-      console.error('Error pausing task:', error);
+      logger.error('Error pausing task:', error);
       toast({
         title: "Ошибка",
         description: "Не удалось приостановить задачу",
@@ -866,7 +867,7 @@ export function WorkerSuperScreen() {
           }
         }
       } catch (locationError) {
-        console.warn('Location check failed:', locationError);
+        logger.warn('Location check failed:', locationError);
         const shouldContinue = confirm(
           'Не удалось проверить ваше местоположение. Продолжить без проверки?'
         );
@@ -917,7 +918,7 @@ export function WorkerSuperScreen() {
         const position = await getCurrentLocation();
         location = formatLocation(position);
       } catch (locationError) {
-        console.warn('Geolocation failed:', locationError);
+        logger.warn('Geolocation failed:', locationError);
       }
 
       if (isResuming) {
@@ -1013,7 +1014,7 @@ export function WorkerSuperScreen() {
         fetchTasks();
       }, 1000);
     } catch (error) {
-      console.error('Error starting task:', error);
+      logger.error('Error starting task:', error);
       toast({
         title: "Ошибка",
         description: "Не удалось начать задачу",
@@ -1070,7 +1071,7 @@ export function WorkerSuperScreen() {
         const position = await getCurrentLocation();
         location = formatLocation(position);
       } catch (locationError) {
-        console.warn('Geolocation failed:', locationError);
+        logger.warn('Geolocation failed:', locationError);
       }
 
       let updateData: TaskUpdate = {
@@ -1124,10 +1125,10 @@ export function WorkerSuperScreen() {
           body: payload,
         });
       } catch (notifyError) {
-        console.warn('Notify manager failed (non-blocking):', notifyError);
+        logger.warn('Notify manager failed (non-blocking):', notifyError);
       }
     } catch (error) {
-      console.error('Error completing task:', error);
+      logger.error('Error completing task:', error);
       toast({
         title: "Ошибка",
         description: "Не удалось завершить задачу",

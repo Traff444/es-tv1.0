@@ -7,6 +7,7 @@ import { MapButton } from './MapDisplay';
 import { TaskPhotoChecklist } from './TaskPhotoChecklist';
 import KanbanBoard from './KanbanBoard';
 import { TaskApproval } from './TaskApproval';
+import logger from '../lib/logger';
 import { 
   Plus, 
   CheckSquare, 
@@ -94,7 +95,7 @@ const MapSelectorModal: React.FC<MapSelectorModalProps> = ({ center, onSelect, o
             setAddress(data.display_name);
           }
         } catch (error) {
-          console.warn('Reverse geocoding failed:', error);
+          logger.warn('Reverse geocoding failed:', error);
         }
       },
     });
@@ -399,7 +400,7 @@ export const TaskManager: React.FC<TaskManagerProps> = () => {
         .order('display_name');
 
       if (error) {
-        console.error('Error fetching task types:', error);
+        logger.error('Error fetching task types:', error);
         return;
       }
 
@@ -409,7 +410,7 @@ export const TaskManager: React.FC<TaskManagerProps> = () => {
         setTaskTypes([]);
       }
     } catch (err) {
-      console.error('Exception in fetchTaskTypes:', err);
+      logger.error('Exception in fetchTaskTypes:', err);
     }
   };
 
@@ -463,7 +464,7 @@ export const TaskManager: React.FC<TaskManagerProps> = () => {
             }
           }
         } catch (locationError) {
-          console.warn('Не удалось получить геолокацию:', locationError);
+          logger.warn('Не удалось получить геолокацию:', locationError);
           // Продолжаем без геолокации, но предупреждаем пользователя
           if (!confirm('Не удалось определить местоположение. Продолжить без GPS-координат?')) {
             return;
@@ -483,7 +484,7 @@ export const TaskManager: React.FC<TaskManagerProps> = () => {
       
       await fetchTasks();
     } catch (error) {
-      console.error('Ошибка обновления задачи:', error);
+      logger.error('Ошибка обновления задачи:', error);
       alert('Ошибка при обновлении статуса задачи');
     } finally {
       setUpdatingTask(null);
@@ -1173,7 +1174,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
 
       onSuccess();
     } catch (error) {
-      console.error('Error creating task:', error);
+      logger.error('Error creating task:', error);
       alert(task ? 'Ошибка при обновлении задачи' : 'Ошибка при создании задачи');
     } finally {
       setLoading(false);

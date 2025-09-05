@@ -3,6 +3,7 @@ import { useAuth } from '../hooks/useAuth';
 import { getAllUsers, updateUserRole, getRoleChangeLogs, signOut, hasValidCredentials, supabase } from '../lib/supabase';
 import { User, RoleChangeLog } from '../types';
 import { EmployeeForm } from './EmployeeForm';
+import logger from '../lib/logger';
 import {
   Users,
   Shield,
@@ -77,7 +78,7 @@ export const AdminPanel: React.FC = () => {
       if (error) throw error;
       
       // Force refresh all data after successful update
-      console.log('Принудительное обновление списка пользователей...');
+      logger.info('Принудительное обновление списка пользователей...');
       await fetchUsers();
       await fetchRoleLogs();
       
@@ -87,7 +88,7 @@ export const AdminPanel: React.FC = () => {
       // Show success message
       alert(`Роль пользователя успешно изменена на "${getRoleDisplayName(role)}"`);
     } catch (error) {
-      console.error('Error updating role:', error);
+      logger.error('Error updating role:', error);
       
       // Check if the error is due to authentication issues
       if (error instanceof Error && 
@@ -121,10 +122,10 @@ export const AdminPanel: React.FC = () => {
       await fetchUsers();
       
       const statusText = !currentStatus ? 'активирован' : 'деактивирован';
-      console.log(`Пользователь ${statusText}`);
+      logger.info(`Пользователь ${statusText}`);
       alert(`Пользователь успешно ${statusText}`);
     } catch (error) {
-      console.error('Error updating user status:', error);
+      logger.error('Error updating user status:', error);
       alert(`Ошибка при изменении статуса пользователя: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`);
     } finally {
       setUpdating(false);

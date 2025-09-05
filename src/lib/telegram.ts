@@ -1,4 +1,6 @@
 // Telegram WebApp integration for unified project
+import logger from './logger';
+
 declare global {
   interface Window {
     Telegram?: {
@@ -29,25 +31,25 @@ export class TelegramWebApp {
   private static instance: TelegramWebApp;
 
   private constructor() {
-    console.log('🚀 TelegramWebApp constructor called');
-    
+    logger.debug('🚀 TelegramWebApp constructor called');
+
     if (this.isTelegramEnvironment()) {
-      console.log('📱 Telegram WebApp detected, initializing...');
+      logger.debug('📱 Telegram WebApp detected, initializing...');
       try {
         window.Telegram!.WebApp.ready();
         window.Telegram!.WebApp.expand();
-        console.log('✅ Telegram WebApp initialized successfully');
-        console.log('📋 WebApp info:', {
+        logger.debug('✅ Telegram WebApp initialized successfully');
+        logger.debug('📋 WebApp info:', {
           platform: window.Telegram!.WebApp.platform,
           version: window.Telegram!.WebApp.version,
           initData: window.Telegram!.WebApp.initData ? 'present' : 'empty',
           user: window.Telegram!.WebApp.initDataUnsafe?.user ? 'present' : 'empty'
         });
       } catch (error) {
-        console.error('❌ Telegram WebApp initialization failed:', error);
+        logger.error('❌ Telegram WebApp initialization failed:', error);
       }
     } else {
-      console.log('🌐 Not in Telegram environment');
+      logger.debug('🌐 Not in Telegram environment');
     }
   }
 
@@ -64,13 +66,13 @@ export class TelegramWebApp {
     const hasNgrok = hasWindow && window.location.hostname.includes('ngrok');
     const hasUser = hasWindow && !!window.Telegram?.WebApp?.initDataUnsafe?.user;
     const params = hasWindow ? new URLSearchParams(window.location.search) : null;
-    const isDev = import.meta.env.DEV;
+    const isDev = process.env.NODE_ENV !== 'production';
     const forceTelegram = isDev && params?.get('force_telegram') === '1';
     const hasTestUserParam = isDev && Boolean(params?.get('telegram_id'));
     const hash = hasWindow ? (window.location.hash || '') : '';
     const hasTgWebAppData = isDev && hasWindow && hash.includes('tgWebAppData=');
-    
-    console.log('🔍 Environment check:', {
+
+    logger.debug('🔍 Environment check:', {
       hasWindow,
       hasTelegram,
       hasNgrok,
@@ -87,14 +89,14 @@ export class TelegramWebApp {
   }
 
   public getTelegramUser() {
-    console.log('🔍 Getting Telegram user...');
-    
-    const isDev = import.meta.env.DEV;
+    logger.debug('🔍 Getting Telegram user...');
+
+    const isDev = process.env.NODE_ENV !== 'production';
     // Разрешаем тестовый сценарий с параметром telegram_id только в режиме разработки
     const urlParams = new URLSearchParams(window.location.search);
     const testUserId = isDev ? urlParams.get('telegram_id') : null;
     if (testUserId) {
-      console.log('🧪 Using test Telegram ID from URL:', testUserId);
+      logger.debug('🧪 Using test Telegram ID from URL:', testUserId);
       return {
         id: parseInt(testUserId),
         first_name: 'Тестовый',
@@ -105,14 +107,14 @@ export class TelegramWebApp {
     }
 
     if (!this.isTelegramEnvironment()) {
-      console.log('🌐 Not in Telegram environment and no test user; returning null');
+      logger.debug('🌐 Not in Telegram environment and no test user; returning null');
       return null;
     }
 
     // Основной источник — initDataUnsafe.user
     let user = window.Telegram!.WebApp.initDataUnsafe.user;
     if (user) {
-      console.log('👤 Telegram user (initDataUnsafe):', user);
+      logger.debug('👤 Telegram user (initDataUnsafe):', user);
       return user;
     }
 
@@ -127,32 +129,32 @@ export class TelegramWebApp {
           const userStr = kv.get('user');
           if (userStr) {
             const parsed = JSON.parse(decodeURIComponent(userStr));
-            console.log('👤 Telegram user (parsed from tgWebAppData hash):', parsed);
+            logger.debug('👤 Telegram user (parsed from tgWebAppData hash):', parsed);
             return parsed;
           }
         }
       } catch (e) {
-        console.warn('⚠️ Failed to parse tgWebAppData from hash:', e);
+        logger.warn('⚠️ Failed to parse tgWebAppData from hash:', e);
       }
     }
 
-    console.log('⚠️ Telegram user not found');
+    logger.info('⚠️ Telegram user not found');
     return null;
   }
 
   public showAlert(message: string) {
     if (this.isTelegramEnvironment()) {
-      console.log('📱 Telegram alert:', message);
+      logger.info('📱 Telegram alert:', message);
       // In real Telegram environment, we could use native alerts
     } else {
-      console.log('🌐 Browser alert:', message);
+      logger.info('🌐 Browser alert:', message);
       alert(message);
     }
   }
 
   public hapticFeedback(type: 'light' | 'medium' | 'heavy' = 'light') {
     if (this.isTelegramEnvironment()) {
-      console.log(`📳 Haptic feedback: ${type}`);
+      logger.info(`📳 Haptic feedback: ${type}`);
       // In real implementation, would use Telegram's haptic API
     }
   }
