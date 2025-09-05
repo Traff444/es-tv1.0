@@ -101,7 +101,7 @@ export const useAuth = () => {
         
         // Check if we're in Telegram environment and have a Telegram user
         const params = new URLSearchParams(window.location.search);
-        const isDev = process.env.NODE_ENV !== 'production';
+        const isDev = import.meta.env.DEV;
         const forceWeb = isDev && params.get('force_web') === '1';
         const detectedTelegram = typeof window !== 'undefined' && 
           !!window.Telegram?.WebApp && 
