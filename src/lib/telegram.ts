@@ -66,7 +66,7 @@ export class TelegramWebApp {
     const hasNgrok = hasWindow && window.location.hostname.includes('ngrok');
     const hasUser = hasWindow && !!window.Telegram?.WebApp?.initDataUnsafe?.user;
     const params = hasWindow ? new URLSearchParams(window.location.search) : null;
-    const isDev = process.env.NODE_ENV !== 'production';
+    const isDev = import.meta.env.DEV;
     const forceTelegram = isDev && params?.get('force_telegram') === '1';
     const hasTestUserParam = isDev && Boolean(params?.get('telegram_id'));
     const hash = hasWindow ? (window.location.hash || '') : '';
@@ -91,7 +91,7 @@ export class TelegramWebApp {
   public getTelegramUser() {
     logger.debug('🔍 Getting Telegram user...');
 
-    const isDev = process.env.NODE_ENV !== 'production';
+    const isDev = import.meta.env.DEV;
     // Разрешаем тестовый сценарий с параметром telegram_id только в режиме разработки
     const urlParams = new URLSearchParams(window.location.search);
     const testUserId = isDev ? urlParams.get('telegram_id') : null;
